@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.logging_config import configure_logging, get_logger
 from app.middleware import setup_middleware
 from app.routes import router
+from db.connection import get_database, close_database
 
 # Initialize settings
 settings = get_settings()
@@ -46,11 +47,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     # Initialize database connection
-    # TODO: Initialize database manager
     logger.info("database_initializing")
+    try:
+        db_manager = await get_database()
+        is_healthy = await db_manager.health_check()
+        logger.info(
+            "database_initialized",
+            dialect=db_manager.dialect,
+            healthy=is_healthy,
+        )
+    except Exception as e:
+        logger.error("database_initialization_failed", error=str(e))
+        # Continue startup even if database fails - allows health checks to report status
+        pass
 
     # Load model
-    # TODO: Initialize model loader
+    # TODO: Initialize model loader (Phase 1.3)
     logger.info(
         "model_loading",
         model_name=settings.huggingface.model_name,
@@ -65,8 +77,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("application_shutting_down")
 
     # Cleanup resources
-    # TODO: Close database connections
-    # TODO: Unload model
+    logger.info("database_closing")
+    await close_database()
+    logger.info("database_closed")
+
+    # TODO: Unload model (Phase 1.3)
 
     logger.info("application_stopped")
 
