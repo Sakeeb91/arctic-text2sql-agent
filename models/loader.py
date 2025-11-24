@@ -313,6 +313,10 @@ class ModelLoader:
         logger.info("warming_up_model")
 
         try:
+            # Assert model and tokenizer are loaded (checked above)
+            assert self._tokenizer is not None
+            assert self._model is not None
+
             inputs = self._tokenizer(
                 sample_text,
                 return_tensors="pt",

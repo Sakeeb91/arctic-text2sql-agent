@@ -111,7 +111,7 @@ def extract_sql_from_output(text: str) -> str | None:
     # If the output starts with SELECT, WITH, or similar, return as-is
     if re.match(r"^\s*(SELECT|WITH|INSERT|UPDATE|DELETE)\s", text, re.IGNORECASE):
         # Take until we hit a double newline or end
-        lines = []
+        lines: list[str] = []
         for line in text.split("\n"):
             stripped = line.strip()
             if not stripped and lines:
