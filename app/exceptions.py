@@ -250,6 +250,9 @@ class InvalidQueryException(QueryException):
         error_details = details or {}
         if validation_errors:
             error_details["validation_errors"] = validation_errors
+        if sql:
+            # Include SQL preview in details (truncated for security)
+            error_details["sql_preview"] = sql[:100] + "..." if len(sql) > 100 else sql
         super().__init__(
             message=message,
             error_code="INVALID_SQL_QUERY",

@@ -256,6 +256,13 @@ Process:
         parts.append(schema)
         parts.append("")
 
+        # Few-shot examples (if provided)
+        if few_shot_examples:
+            parts.append("Previous successful queries:")
+            for example in few_shot_examples:
+                parts.append(example.format())
+                parts.append("")
+
         # Additional context
         if context:
             parts.append(f"Context: {context}")
