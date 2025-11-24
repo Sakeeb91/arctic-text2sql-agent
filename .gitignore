@@ -1,8 +1,17 @@
+# Arctic Text2SQL Agent - Git Ignore Configuration
+
+# =============================================================================
 # Python
+# =============================================================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -16,59 +25,170 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual Environment
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# =============================================================================
+# Virtual Environments
+# =============================================================================
+.env
+.venv
+env/
 venv/
 ENV/
-env/
-.venv
+env.bak/
+venv.bak/
 
-# Environment Variables
-.env
-.env.local
-.env.*.local
-
-# IDEs
+# =============================================================================
+# IDEs and Editors
+# =============================================================================
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
 *.swo
 *~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# =============================================================================
+# Operating System
+# =============================================================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-*.cover
-.hypothesis/
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
 
-# Model Cache
-models/cache/
-*.bin
-*.safetensors
-pytorch_model.bin
+# Linux
+*~
 
-# Database
+# =============================================================================
+# Project Specific
+# =============================================================================
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Local data storage
+data/
 *.db
 *.sqlite
 *.sqlite3
 
+# Model cache
+model_cache/
+.cache/
+*.bin
+*.safetensors
+
+# HuggingFace cache
+.huggingface/
+
 # Logs
-*.log
 logs/
+*.log
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Secrets and credentials
+*.pem
+*.key
+secrets/
+credentials/
 
-# Ruff
-.ruff_cache/
+# Docker volumes
+docker-data/
+
+# Alembic versions (auto-generated)
+# db/migrations/versions/*.py
+
+# =============================================================================
+# Testing
+# =============================================================================
+.benchmarks/
+.mutmut-cache/
+test-results/
+test-reports/
+
+# =============================================================================
+# Build and CI/CD
+# =============================================================================
+*.tar.gz
+*.zip
+.terraform/
+terraform.tfstate*
