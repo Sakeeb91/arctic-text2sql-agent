@@ -144,9 +144,6 @@ class TestAPIExceptions:
 
     def test_rate_limit_exceeded(self) -> None:
         """Test RateLimitExceededException."""
-        exc = RateLimitExceededException(
-            limit=60, window_seconds=60, retry_after=30
-        )
+        exc = RateLimitExceededException(limit=60, window_seconds=60, retry_after=30)
         assert exc.status_code == 429
         assert exc.details["retry_after"] == 30
-

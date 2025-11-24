@@ -122,4 +122,3 @@ class TestModelInfoEndpoint:
         data = response.json()
         assert "model_name" in data
         assert "model_loaded" in data
-

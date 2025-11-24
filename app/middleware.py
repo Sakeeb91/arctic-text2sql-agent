@@ -169,4 +169,3 @@ def setup_middleware(app: FastAPI, cors_origins: list[str] | None = None) -> Non
         "middleware_configured",
         cors_origins=cors_origins,
     )
-

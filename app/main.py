@@ -136,4 +136,3 @@ if __name__ == "__main__":
         reload=settings.api.debug,
         log_level="info",
     )
-

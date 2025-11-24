@@ -180,6 +180,7 @@ class SchemaIntrospector:
         include_row_counts: bool,
     ) -> SchemaInfo:
         """Extract schema from database connection."""
+
         # Run inspection in sync context
         def sync_inspect(connection: Any) -> dict[str, Any]:
             inspector = inspect(connection)
@@ -217,7 +218,9 @@ class SchemaIntrospector:
                         fk_info = ForeignKeyInfo(
                             column=col,
                             references_table=fk.get("referred_table", ""),
-                            references_column=referred_cols[i] if i < len(referred_cols) else "",
+                            references_column=(
+                                referred_cols[i] if i < len(referred_cols) else ""
+                            ),
                             constraint_name=fk.get("name"),
                         )
                         foreign_keys.append(fk_info)
@@ -369,4 +372,3 @@ async def get_sample_data(
             error=str(e),
         )
         return []
-

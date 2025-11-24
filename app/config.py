@@ -116,7 +116,9 @@ class APISettings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         """Return CORS origins as a list."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
 
 
 class AgentSettings(BaseSettings):
@@ -261,4 +263,3 @@ def get_settings() -> Settings:
         Settings: Application settings instance
     """
     return Settings()
-

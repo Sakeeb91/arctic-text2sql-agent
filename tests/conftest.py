@@ -116,7 +116,9 @@ async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, 
 
 
 @pytest.fixture
-async def db_manager(async_engine: AsyncEngine) -> AsyncGenerator[DatabaseManager, None]:
+async def db_manager(
+    async_engine: AsyncEngine,
+) -> AsyncGenerator[DatabaseManager, None]:
     """Create a database manager for testing."""
     manager = DatabaseManager(url="sqlite:////:memory:")
 
@@ -150,7 +152,9 @@ def sample_schema() -> SchemaInfo:
             TableInfo(
                 name="customers",
                 columns=[
-                    ColumnInfo(name="id", data_type="INTEGER", nullable=False, primary_key=True),
+                    ColumnInfo(
+                        name="id", data_type="INTEGER", nullable=False, primary_key=True
+                    ),
                     ColumnInfo(name="name", data_type="VARCHAR(100)", nullable=False),
                     ColumnInfo(name="email", data_type="VARCHAR(255)", nullable=True),
                     ColumnInfo(name="state", data_type="VARCHAR(50)", nullable=True),
@@ -160,9 +164,18 @@ def sample_schema() -> SchemaInfo:
             TableInfo(
                 name="orders",
                 columns=[
-                    ColumnInfo(name="id", data_type="INTEGER", nullable=False, primary_key=True),
-                    ColumnInfo(name="customer_id", data_type="INTEGER", nullable=False, foreign_key="customers.id"),
-                    ColumnInfo(name="amount", data_type="DECIMAL(10,2)", nullable=False),
+                    ColumnInfo(
+                        name="id", data_type="INTEGER", nullable=False, primary_key=True
+                    ),
+                    ColumnInfo(
+                        name="customer_id",
+                        data_type="INTEGER",
+                        nullable=False,
+                        foreign_key="customers.id",
+                    ),
+                    ColumnInfo(
+                        name="amount", data_type="DECIMAL(10,2)", nullable=False
+                    ),
                     ColumnInfo(name="order_date", data_type="DATE", nullable=False),
                 ],
                 primary_keys=["id"],
@@ -326,4 +339,3 @@ def reset_singletons() -> Any:
     models.inference._inference_engine = None
 
     yield
-

@@ -357,4 +357,3 @@ def sanitize_identifier(identifier: str) -> str:
         sanitized = "_" + sanitized
 
     return sanitized
-

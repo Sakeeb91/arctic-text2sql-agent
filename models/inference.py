@@ -368,4 +368,3 @@ async def get_inference_engine(model_loader: ModelLoader) -> InferenceEngine:
         _inference_engine = InferenceEngine(model_loader)
 
     return _inference_engine
-

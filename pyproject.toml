@@ -152,5 +152,10 @@ show_missing = true
 # Bandit security linter configuration
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]
-skips = ["B101"]  # Skip assert warnings in production code (they're acceptable in our case)
+skips = [
+    "B101",  # Skip assert warnings (acceptable in our codebase)
+    "B104",  # Skip hardcoded_bind_all_interfaces (0.0.0.0 is intentional for Docker/container deployments)
+    "B608",  # Skip hardcoded_sql_expressions (table names come from schema introspection, not user input)
+    "B615",  # Skip huggingface_unsafe_download (model versioning handled via model name configuration)
+]
 

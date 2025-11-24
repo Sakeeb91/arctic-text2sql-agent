@@ -171,8 +171,18 @@ class TestFormatSchemaForPrompt:
             {
                 "name": "users",
                 "columns": [
-                    {"name": "id", "data_type": "INTEGER", "primary_key": True, "nullable": False},
-                    {"name": "name", "data_type": "VARCHAR", "primary_key": False, "nullable": True},
+                    {
+                        "name": "id",
+                        "data_type": "INTEGER",
+                        "primary_key": True,
+                        "nullable": False,
+                    },
+                    {
+                        "name": "name",
+                        "data_type": "VARCHAR",
+                        "primary_key": False,
+                        "nullable": True,
+                    },
                 ],
                 "foreign_keys": [],
             }
@@ -191,10 +201,19 @@ class TestFormatSchemaForPrompt:
             {
                 "name": "orders",
                 "columns": [
-                    {"name": "customer_id", "data_type": "INTEGER", "foreign_key": "customers.id", "nullable": False},
+                    {
+                        "name": "customer_id",
+                        "data_type": "INTEGER",
+                        "foreign_key": "customers.id",
+                        "nullable": False,
+                    },
                 ],
                 "foreign_keys": [
-                    {"column": "customer_id", "references_table": "customers", "references_column": "id"}
+                    {
+                        "column": "customer_id",
+                        "references_table": "customers",
+                        "references_column": "id",
+                    }
                 ],
             }
         ]
@@ -202,4 +221,3 @@ class TestFormatSchemaForPrompt:
         result = format_schema_for_prompt(tables)
 
         assert "FK -> customers.id" in result
-

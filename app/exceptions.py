@@ -214,7 +214,8 @@ class TokenLimitExceededException(ModelException):
             message=f"Input exceeds token limit: {actual_tokens} > {max_tokens}",
             error_code="TOKEN_LIMIT_EXCEEDED",
             status_code=400,
-            details=details or {"max_tokens": max_tokens, "actual_tokens": actual_tokens},
+            details=details
+            or {"max_tokens": max_tokens, "actual_tokens": actual_tokens},
         )
 
 
@@ -444,4 +445,3 @@ class ValidationException(APIException):
             status_code=422,
             details=error_details,
         )
-

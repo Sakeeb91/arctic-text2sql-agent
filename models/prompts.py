@@ -384,4 +384,3 @@ def format_schema_for_prompt(
         lines.append("")
 
     return "\n".join(lines)
-

@@ -13,7 +13,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedModel,
+    PreTrainedTokenizer,
+)
 
 from app.config import get_settings
 from app.exceptions import ModelLoadException
@@ -104,8 +109,16 @@ class ModelLoader:
 
         self._model_name = model_name or settings.huggingface.model_name
         self._device = device or settings.huggingface.device
-        self._enable_8bit = enable_8bit if enable_8bit is not None else settings.huggingface.enable_8bit_quantization
-        self._enable_4bit = enable_4bit if enable_4bit is not None else settings.huggingface.enable_4bit_quantization
+        self._enable_8bit = (
+            enable_8bit
+            if enable_8bit is not None
+            else settings.huggingface.enable_8bit_quantization
+        )
+        self._enable_4bit = (
+            enable_4bit
+            if enable_4bit is not None
+            else settings.huggingface.enable_4bit_quantization
+        )
         self._hf_token = hf_token or settings.huggingface.token
 
         self._model: PreTrainedModel | None = None
@@ -380,4 +393,3 @@ def unload_model() -> None:
     if _model_loader:
         _model_loader.unload()
         _model_loader = None
-

@@ -85,7 +85,9 @@ class QueryResponse(BaseModel):
 
     sql: str = Field(..., description="Generated SQL query")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
-    execution_time_ms: float = Field(..., description="Total execution time in milliseconds")
+    execution_time_ms: float = Field(
+        ..., description="Total execution time in milliseconds"
+    )
     dialect: str = Field(..., description="SQL dialect used")
     valid_syntax: bool = Field(..., description="Whether SQL syntax is valid")
     validation_status: str = Field(..., description="Validation status")
@@ -278,7 +280,9 @@ async def get_reasoning_trace(query_id: str) -> dict[str, Any]:
 @router.post("/agent/retry")
 async def retry_query(
     query_id: str = Query(..., description="Query ID to retry"),
-    correction_hint: str | None = Query(None, description="Optional hint for correction"),
+    correction_hint: str | None = Query(
+        None, description="Optional hint for correction"
+    ),
 ) -> QueryResponse:
     """
     Retry a failed query with optional correction hints.
@@ -345,4 +349,3 @@ async def get_model_info() -> ModelInfoResponse:
         device="cpu",
         quantization=None,
     )
-

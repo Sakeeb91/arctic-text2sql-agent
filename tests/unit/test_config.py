@@ -117,4 +117,3 @@ class TestGetSettings:
         settings1 = get_settings()
         settings2 = get_settings()
         assert settings1 is settings2
-
