@@ -35,7 +35,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
 # Testing
-pytest==8.0.0
+pytest==7.4.4
 pytest-asyncio==0.23.4
 pytest-cov==4.1.0
 httpx==0.26.0
