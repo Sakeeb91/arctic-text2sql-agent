@@ -328,14 +328,20 @@ def reset_singletons() -> Any:
 
     db.connection._db_manager = None
 
-    # Reset model loader
-    import models.loader
+    # Reset model loader (skip if torch not installed)
+    try:
+        import models.loader
 
-    models.loader._model_loader = None
+        models.loader._model_loader = None
+    except ImportError:
+        pass  # torch not installed, skip model loader reset
 
-    # Reset inference engine
-    import models.inference
+    # Reset inference engine (skip if torch not installed)
+    try:
+        import models.inference
 
-    models.inference._inference_engine = None
+        models.inference._inference_engine = None
+    except ImportError:
+        pass  # torch not installed, skip inference engine reset
 
     yield
