@@ -434,4 +434,3 @@ class TestGetSampleData:
 
         # Should return empty list on error
         assert result == []
-

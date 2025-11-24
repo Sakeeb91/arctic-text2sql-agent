@@ -219,9 +219,7 @@ class TestGlobalDatabaseFunctions:
         db.connection._db_manager = None
 
     @pytest.mark.asyncio
-    async def test_get_database_creates_manager(
-        self, mock_settings: MagicMock
-    ) -> None:
+    async def test_get_database_creates_manager(self, mock_settings: MagicMock) -> None:
         """Test get_database creates and initializes manager."""
         with patch("db.connection.get_settings", return_value=mock_settings):
             with patch("db.connection.create_async_engine") as mock_engine:
@@ -267,4 +265,3 @@ class TestGlobalDatabaseFunctions:
         """Test close_database when no manager exists."""
         # Should not raise any errors
         await close_database()
-

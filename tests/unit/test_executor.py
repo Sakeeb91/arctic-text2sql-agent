@@ -326,9 +326,7 @@ class TestSafeQueryExecutor:
     @pytest.mark.asyncio
     async def test_execute_explain_failure(self, mock_session: MagicMock) -> None:
         """Test EXPLAIN failure returns error info."""
-        mock_session.execute = AsyncMock(
-            side_effect=Exception("EXPLAIN not supported")
-        )
+        mock_session.execute = AsyncMock(side_effect=Exception("EXPLAIN not supported"))
 
         executor = SafeQueryExecutor(mock_session)
         result = await executor.execute_explain("SELECT * FROM users")
@@ -405,4 +403,3 @@ class TestDangerousKeywordsAndPatterns:
 
         for pattern in INJECTION_PATTERNS:
             re.compile(pattern)  # Should not raise
-

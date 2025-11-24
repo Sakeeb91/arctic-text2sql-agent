@@ -27,18 +27,21 @@ async def test_engine() -> AsyncEngine:
     # Create test tables
     async with engine.begin() as conn:
         await conn.execute(
-            text("""
+            text(
+                """
             CREATE TABLE customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(100) NOT NULL,
                 email VARCHAR(255),
                 state VARCHAR(50)
             )
-        """)
+        """
+            )
         )
 
         await conn.execute(
-            text("""
+            text(
+                """
             CREATE TABLE orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER NOT NULL,
@@ -46,27 +49,32 @@ async def test_engine() -> AsyncEngine:
                 order_date DATE NOT NULL,
                 FOREIGN KEY (customer_id) REFERENCES customers(id)
             )
-        """)
+        """
+            )
         )
 
         # Insert test data
         await conn.execute(
-            text("""
+            text(
+                """
             INSERT INTO customers (name, email, state) VALUES
                 ('Alice', 'alice@example.com', 'California'),
                 ('Bob', 'bob@example.com', 'New York'),
                 ('Charlie', 'charlie@example.com', 'California')
-        """)
+        """
+            )
         )
 
         await conn.execute(
-            text("""
+            text(
+                """
             INSERT INTO orders (customer_id, amount, order_date) VALUES
                 (1, 100.50, '2024-01-15'),
                 (1, 200.00, '2024-02-20'),
                 (2, 150.75, '2024-01-20'),
                 (3, 75.25, '2024-03-01')
-        """)
+        """
+            )
         )
 
     yield engine
@@ -356,13 +364,15 @@ class TestSafeQueryExecutorIntegration:
         """Test JOIN query."""
         executor = SafeQueryExecutor(test_session)
 
-        result = await executor.execute("""
+        result = await executor.execute(
+            """
             SELECT c.name, SUM(o.amount) as total_orders
             FROM customers c
             JOIN orders o ON c.id = o.customer_id
             GROUP BY c.id
             ORDER BY total_orders DESC
-        """)
+        """
+        )
 
         assert result.success is True
         assert result.row_count == 3
@@ -376,7 +386,8 @@ class TestSafeQueryExecutorIntegration:
         """Test Common Table Expression (CTE) query."""
         executor = SafeQueryExecutor(test_session)
 
-        result = await executor.execute("""
+        result = await executor.execute(
+            """
             WITH customer_totals AS (
                 SELECT customer_id, SUM(amount) as total
                 FROM orders
@@ -385,7 +396,8 @@ class TestSafeQueryExecutorIntegration:
             SELECT c.name, ct.total
             FROM customers c
             JOIN customer_totals ct ON c.id = ct.customer_id
-        """)
+        """
+        )
 
         assert result.success is True
         assert result.row_count == 3
@@ -468,4 +480,3 @@ class TestEndToEndDatabaseFlow:
             for row in result.rows:
                 assert "name" in row
                 assert "order_count" in row
-
