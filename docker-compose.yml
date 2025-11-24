@@ -1,0 +1,163 @@
+# Arctic Text2SQL Agent - Docker Compose Configuration
+#
+# Usage:
+#   Development: docker-compose up -d
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: "3.8"
+
+services:
+  # ==========================================================================
+  # API Service
+  # ==========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development  # Use 'production' for prod builds
+    container_name: arctic-text2sql-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/text2sql}
+      # HuggingFace
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - TEXT2SQL_MODEL=${TEXT2SQL_MODEL:-Snowflake/Arctic-Text2SQL-R1-7B}
+      - MODEL_DEVICE=${MODEL_DEVICE:-cpu}
+      # API
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_DEBUG=${API_DEBUG:-true}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      # Agent
+      - AGENT_MAX_STEPS=${AGENT_MAX_STEPS:-5}
+      - AGENT_MIN_CONFIDENCE=${AGENT_MIN_CONFIDENCE:-0.7}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-console}
+      # Cache
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      # Mount source for hot reload in development
+      - ./app:/app/app:ro
+      - ./db:/app/db:ro
+      - ./models:/app/models:ro
+      # Persist data
+      - app-data:/app/data
+      # Mount HuggingFace cache for model persistence
+      - huggingface-cache:/home/appuser/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: arctic-text2sql-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-text2sql}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Redis Cache
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: arctic-text2sql-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Prometheus Metrics (Optional)
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: arctic-text2sql-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Grafana Dashboard (Optional)
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: arctic-text2sql-grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres-data:
+    name: arctic-text2sql-postgres
+  redis-data:
+    name: arctic-text2sql-redis
+  app-data:
+    name: arctic-text2sql-data
+  huggingface-cache:
+    name: arctic-text2sql-hf-cache
+  prometheus-data:
+    name: arctic-text2sql-prometheus
+  grafana-data:
+    name: arctic-text2sql-grafana
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: arctic-text2sql-network
+
