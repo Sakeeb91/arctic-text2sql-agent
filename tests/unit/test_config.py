@@ -18,33 +18,39 @@ from app.config import (
 class TestDatabaseSettings:
     """Tests for DatabaseSettings."""
 
-    def test_default_values(self) -> None:
+    def test_default_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test default database settings."""
+        # Clear any env vars that might interfere
+        monkeypatch.delenv("DATABASE_URL", raising=False)
         settings = DatabaseSettings()
         assert settings.url == "sqlite:///./data/text2sql.db"
         assert settings.pool_size == 5
         assert settings.max_overflow == 10
         assert settings.pool_timeout == 30
 
-    def test_valid_postgresql_url(self) -> None:
+    def test_valid_postgresql_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test valid PostgreSQL URL."""
-        settings = DatabaseSettings(url="postgresql://user:pass@localhost/db")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost/db")
+        settings = DatabaseSettings()
         assert settings.url.startswith("postgresql://")
 
-    def test_valid_mysql_url(self) -> None:
+    def test_valid_mysql_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test valid MySQL URL."""
-        settings = DatabaseSettings(url="mysql://user:pass@localhost/db")
+        monkeypatch.setenv("DATABASE_URL", "mysql://user:pass@localhost/db")
+        settings = DatabaseSettings()
         assert settings.url.startswith("mysql://")
 
-    def test_valid_sqlite_url(self) -> None:
+    def test_valid_sqlite_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test valid SQLite URL."""
-        settings = DatabaseSettings(url="sqlite:///./test.db")
+        monkeypatch.setenv("DATABASE_URL", "sqlite:///./test.db")
+        settings = DatabaseSettings()
         assert settings.url.startswith("sqlite:///")
 
-    def test_invalid_url_raises_error(self) -> None:
+    def test_invalid_url_raises_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that invalid URL raises ValidationError."""
+        monkeypatch.setenv("DATABASE_URL", "invalid://url")
         with pytest.raises(ValidationError):
-            DatabaseSettings(url="invalid://url")
+            DatabaseSettings()
 
 
 class TestAgentSettings:
@@ -87,21 +93,29 @@ class TestAgentSettings:
 class TestAPISettings:
     """Tests for APISettings."""
 
-    def test_cors_origins_list(self) -> None:
+    def test_cors_origins_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test CORS origins parsing."""
-        settings = APISettings(cors_origins="http://a.com, http://b.com")
+        monkeypatch.setenv("API_CORS_ORIGINS", "http://a.com, http://b.com")
+        settings = APISettings()
         assert settings.cors_origins_list == ["http://a.com", "http://b.com"]
 
-    def test_port_bounds(self) -> None:
+    def test_port_bounds(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test port boundary validation."""
-        APISettings(port=1)
-        APISettings(port=65535)
+        # Valid values
+        monkeypatch.setenv("API_PORT", "1")
+        APISettings()
+        monkeypatch.setenv("API_PORT", "65535")
+        APISettings()
 
+        # Invalid values - port 0
+        monkeypatch.setenv("API_PORT", "0")
         with pytest.raises(ValidationError):
-            APISettings(port=0)
+            APISettings()
 
+        # Invalid values - port 65536
+        monkeypatch.setenv("API_PORT", "65536")
         with pytest.raises(ValidationError):
-            APISettings(port=65536)
+            APISettings()
 
 
 class TestGetSettings:
