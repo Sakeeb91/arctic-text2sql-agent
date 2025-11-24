@@ -10,7 +10,6 @@ from models.prompts import (
     ChainOfThoughtPromptTemplate,
     FewShotExample,
     build_prompt,
-    extract_sql_from_output,
     format_schema_for_prompt,
     get_prompt_template,
 )

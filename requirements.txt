@@ -10,6 +10,7 @@ torch==2.2.0
 accelerate==0.26.1
 huggingface_hub==0.20.3
 bitsandbytes==0.42.0
+numpy<2  # Required for torch 2.2.0 compatibility
 
 # Database
 sqlalchemy==2.0.27
