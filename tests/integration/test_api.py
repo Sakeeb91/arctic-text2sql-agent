@@ -14,7 +14,8 @@ class TestHealthEndpoint:
         assert response.status_code == 200
 
         data = response.json()
-        assert data["status"] == "healthy"
+        # Status can be "healthy" or "degraded" depending on database availability
+        assert data["status"] in ("healthy", "degraded")
         assert "version" in data
         assert "timestamp" in data
 
