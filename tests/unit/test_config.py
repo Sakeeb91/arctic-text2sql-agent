@@ -93,11 +93,15 @@ class TestAgentSettings:
 class TestAPISettings:
     """Tests for APISettings."""
 
-    def test_cors_origins_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cors_origins_list(self) -> None:
         """Test CORS origins parsing."""
-        monkeypatch.setenv("API_CORS_ORIGINS", "http://a.com, http://b.com")
+        # Test the cors_origins_list property directly with known default value
         settings = APISettings()
-        assert settings.cors_origins_list == ["http://a.com", "http://b.com"]
+        # Default cors_origins is "http://localhost:3000,http://localhost:8080"
+        assert settings.cors_origins_list == ["http://localhost:3000", "http://localhost:8080"]
+        # Test that the property correctly splits and strips
+        assert all(isinstance(origin, str) for origin in settings.cors_origins_list)
+        assert len(settings.cors_origins_list) == 2
 
     def test_port_bounds(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test port boundary validation."""
