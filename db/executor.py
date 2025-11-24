@@ -6,6 +6,7 @@ This module provides secure SQL execution with:
 - Timeout handling
 - Result serialization
 - Transaction management
+- Retry logic for transient failures
 """
 
 import asyncio
@@ -16,6 +17,12 @@ from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.exceptions import (
     QueryExecutionException,
@@ -267,12 +274,23 @@ class SafeQueryExecutor:
                 details={"error": str(e)},
             ) from e
 
+    @retry(
+        retry=retry_if_exception_type((ConnectionError, OSError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True,
+    )
     async def _execute_query(
         self,
         sql: str,
         params: dict[str, Any] | None,
     ) -> QueryResult:
-        """Execute query and return result."""
+        """
+        Execute query and return result.
+
+        Includes retry logic for transient connection failures.
+        Will retry up to 3 times with exponential backoff.
+        """
         # Always use parameterized query
         stmt = text(sql)
         result = await self._session.execute(stmt, params or {})
