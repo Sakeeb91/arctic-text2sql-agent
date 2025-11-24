@@ -2,8 +2,6 @@
 Unit tests for exception classes.
 """
 
-import pytest
-
 from app.exceptions import (
     AgentMaxStepsExceededException,
     AuthenticationException,

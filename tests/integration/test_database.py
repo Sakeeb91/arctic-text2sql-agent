@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engin
 from sqlalchemy.pool import StaticPool
 
 from db.connection import DatabaseManager
+from db.executor import SafeQueryExecutor
 from db.schema import SchemaIntrospector, get_sample_data
-from db.executor import SafeQueryExecutor, QueryResult
 
 
 @pytest.fixture

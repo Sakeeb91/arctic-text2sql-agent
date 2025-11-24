@@ -2,17 +2,17 @@
 Unit tests for database connection management.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.exceptions import DatabaseConnectionException
 from db.connection import (
     DatabaseManager,
     _get_async_url,
-    get_database,
     close_database,
+    get_database,
 )
 
 
@@ -110,48 +110,54 @@ class TestDatabaseManager:
     @pytest.mark.asyncio
     async def test_initialize_success(self, mock_settings: MagicMock) -> None:
         """Test successful database initialization."""
-        with patch("db.connection.get_settings", return_value=mock_settings):
-            with patch("db.connection.create_async_engine") as mock_engine:
-                mock_engine.return_value = MagicMock(spec=AsyncEngine)
+        with (
+            patch("db.connection.get_settings", return_value=mock_settings),
+            patch("db.connection.create_async_engine") as mock_engine,
+        ):
+            mock_engine.return_value = MagicMock(spec=AsyncEngine)
 
-                manager = DatabaseManager(url="sqlite:///test.db")
-                await manager.initialize()
+            manager = DatabaseManager(url="sqlite:///test.db")
+            await manager.initialize()
 
-                assert manager._is_initialized is True
-                assert manager._engine is not None
-                mock_engine.assert_called_once()
+            assert manager._is_initialized is True
+            assert manager._engine is not None
+            mock_engine.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_initialize_already_initialized(
         self, mock_settings: MagicMock
     ) -> None:
         """Test that initialize is idempotent."""
-        with patch("db.connection.get_settings", return_value=mock_settings):
-            with patch("db.connection.create_async_engine") as mock_engine:
-                mock_engine.return_value = MagicMock(spec=AsyncEngine)
+        with (
+            patch("db.connection.get_settings", return_value=mock_settings),
+            patch("db.connection.create_async_engine") as mock_engine,
+        ):
+            mock_engine.return_value = MagicMock(spec=AsyncEngine)
 
-                manager = DatabaseManager(url="sqlite:///test.db")
-                await manager.initialize()
-                await manager.initialize()  # Second call should be no-op
+            manager = DatabaseManager(url="sqlite:///test.db")
+            await manager.initialize()
+            await manager.initialize()  # Second call should be no-op
 
-                # Should only be called once
-                assert mock_engine.call_count == 1
+            # Should only be called once
+            assert mock_engine.call_count == 1
 
     @pytest.mark.asyncio
     async def test_initialize_failure(self, mock_settings: MagicMock) -> None:
         """Test database initialization failure."""
-        with patch("db.connection.get_settings", return_value=mock_settings):
-            with patch(
+        with (
+            patch("db.connection.get_settings", return_value=mock_settings),
+            patch(
                 "db.connection.create_async_engine",
                 side_effect=Exception("Connection failed"),
-            ):
-                manager = DatabaseManager(url="sqlite:///test.db")
+            ),
+        ):
+            manager = DatabaseManager(url="sqlite:///test.db")
 
-                with pytest.raises(DatabaseConnectionException) as exc_info:
-                    await manager.initialize()
+            with pytest.raises(DatabaseConnectionException) as exc_info:
+                await manager.initialize()
 
-                assert "Failed to initialize database" in str(exc_info.value.message)
-                assert manager._is_initialized is False
+            assert "Failed to initialize database" in str(exc_info.value.message)
+            assert manager._is_initialized is False
 
     @pytest.mark.asyncio
     async def test_close(self, mock_settings: MagicMock) -> None:
@@ -221,44 +227,50 @@ class TestGlobalDatabaseFunctions:
     @pytest.mark.asyncio
     async def test_get_database_creates_manager(self, mock_settings: MagicMock) -> None:
         """Test get_database creates and initializes manager."""
-        with patch("db.connection.get_settings", return_value=mock_settings):
-            with patch("db.connection.create_async_engine") as mock_engine:
-                mock_engine.return_value = MagicMock(spec=AsyncEngine)
+        with (
+            patch("db.connection.get_settings", return_value=mock_settings),
+            patch("db.connection.create_async_engine") as mock_engine,
+        ):
+            mock_engine.return_value = MagicMock(spec=AsyncEngine)
 
-                manager = await get_database()
+            manager = await get_database()
 
-                assert manager is not None
-                assert manager._is_initialized is True
+            assert manager is not None
+            assert manager._is_initialized is True
 
     @pytest.mark.asyncio
     async def test_get_database_returns_same_instance(
         self, mock_settings: MagicMock
     ) -> None:
         """Test get_database returns the same instance."""
-        with patch("db.connection.get_settings", return_value=mock_settings):
-            with patch("db.connection.create_async_engine") as mock_engine:
-                mock_engine.return_value = MagicMock(spec=AsyncEngine)
+        with (
+            patch("db.connection.get_settings", return_value=mock_settings),
+            patch("db.connection.create_async_engine") as mock_engine,
+        ):
+            mock_engine.return_value = MagicMock(spec=AsyncEngine)
 
-                manager1 = await get_database()
-                manager2 = await get_database()
+            manager1 = await get_database()
+            manager2 = await get_database()
 
-                assert manager1 is manager2
+            assert manager1 is manager2
 
     @pytest.mark.asyncio
     async def test_close_database(self, mock_settings: MagicMock) -> None:
         """Test close_database closes the global manager."""
-        with patch("db.connection.get_settings", return_value=mock_settings):
-            with patch("db.connection.create_async_engine") as mock_engine:
-                mock_engine_instance = MagicMock(spec=AsyncEngine)
-                mock_engine_instance.dispose = AsyncMock()
-                mock_engine.return_value = mock_engine_instance
+        with (
+            patch("db.connection.get_settings", return_value=mock_settings),
+            patch("db.connection.create_async_engine") as mock_engine,
+        ):
+            mock_engine_instance = MagicMock(spec=AsyncEngine)
+            mock_engine_instance.dispose = AsyncMock()
+            mock_engine.return_value = mock_engine_instance
 
-                await get_database()
-                await close_database()
+            await get_database()
+            await close_database()
 
-                import db.connection
+            import db.connection
 
-                assert db.connection._db_manager is None
+            assert db.connection._db_manager is None
 
     @pytest.mark.asyncio
     async def test_close_database_when_not_initialized(self) -> None:

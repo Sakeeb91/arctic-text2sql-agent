@@ -6,10 +6,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.config import (
-    APISettings,
     AgentSettings,
+    APISettings,
     DatabaseSettings,
-    HuggingFaceSettings,
     Settings,
     get_settings,
 )

@@ -21,8 +21,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import Settings
 from app.main import app
 from db.connection import DatabaseManager
-from db.schema import SchemaInfo, TableInfo, ColumnInfo
-
+from db.schema import ColumnInfo, SchemaInfo, TableInfo
 
 # =============================================================================
 # Configuration Fixtures

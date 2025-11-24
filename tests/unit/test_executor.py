@@ -3,24 +3,22 @@ Unit tests for safe query executor.
 """
 
 import asyncio
-import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import (
     QueryExecutionException,
     QueryTimeoutException,
-    UnsupportedQueryTypeException,
 )
 from db.executor import (
+    DANGEROUS_KEYWORDS,
+    INJECTION_PATTERNS,
     QueryResult,
     QueryValidator,
     SafeQueryExecutor,
     sanitize_identifier,
-    DANGEROUS_KEYWORDS,
-    INJECTION_PATTERNS,
 )
 
 
@@ -391,7 +389,7 @@ class TestDangerousKeywordsAndPatterns:
             "EXECUTE",
         }
 
-        assert DANGEROUS_KEYWORDS == expected_keywords
+        assert expected_keywords == DANGEROUS_KEYWORDS
 
     def test_injection_patterns_coverage(self) -> None:
         """Test that injection patterns cover common attacks."""

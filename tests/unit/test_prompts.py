@@ -2,11 +2,9 @@
 Unit tests for prompt templates module.
 """
 
-import pytest
-
 from models.prompts import (
-    ArcticPromptTemplate,
     AgentPromptTemplate,
+    ArcticPromptTemplate,
     ChainOfThoughtPromptTemplate,
     FewShotExample,
     build_prompt,

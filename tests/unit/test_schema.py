@@ -2,19 +2,18 @@
 Unit tests for database schema introspection utilities.
 """
 
-import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.exceptions import SchemaNotFoundException, TableNotFoundException
+from app.exceptions import TableNotFoundException
 from db.schema import (
     ColumnInfo,
     ForeignKeyInfo,
-    TableInfo,
     SchemaInfo,
     SchemaIntrospector,
+    TableInfo,
     get_sample_data,
 )
 
@@ -262,7 +261,7 @@ class TestSchemaIntrospector:
         # Mock run_sync to return empty schema
         mock_connection.run_sync.return_value = {"tables": []}
 
-        result = await introspector.get_schema("test_db", use_cache=False)
+        await introspector.get_schema("test_db", use_cache=False)
 
         # Should have called connect (not used cache)
         mock_engine.connect.assert_called_once()
