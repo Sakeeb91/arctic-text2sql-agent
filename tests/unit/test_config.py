@@ -98,7 +98,10 @@ class TestAPISettings:
         # Test the cors_origins_list property directly with known default value
         settings = APISettings()
         # Default cors_origins is "http://localhost:3000,http://localhost:8080"
-        assert settings.cors_origins_list == ["http://localhost:3000", "http://localhost:8080"]
+        assert settings.cors_origins_list == [
+            "http://localhost:3000",
+            "http://localhost:8080",
+        ]
         # Test that the property correctly splits and strips
         assert all(isinstance(origin, str) for origin in settings.cors_origins_list)
         assert len(settings.cors_origins_list) == 2
