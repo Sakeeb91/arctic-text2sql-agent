@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app import __version__
 from app.logging_config import get_logger
+from db.connection import get_database
 
 logger = get_logger(__name__)
 
@@ -226,14 +227,30 @@ async def get_schema(database_id: str) -> SchemaResponse:
     """
     logger.info("get_schema_request", database_id=database_id)
 
-    # TODO: Implement actual schema retrieval
-    return SchemaResponse(
-        database_id=database_id,
-        dialect="postgresql",
-        tables=[],
-        table_count=0,
-        last_updated=datetime.now(),
-    )
+    try:
+        from db.schema import SchemaIntrospector
+
+        db_manager = await get_database()
+        introspector = SchemaIntrospector(db_manager.engine)
+        schema = await introspector.get_schema(database_id)
+
+        return SchemaResponse(
+            database_id=schema.database_id,
+            dialect=schema.dialect,
+            tables=[table.to_dict() for table in schema.tables],
+            table_count=len(schema.tables),
+            last_updated=schema.last_updated,
+        )
+    except Exception as e:
+        logger.error("get_schema_error", database_id=database_id, error=str(e))
+        # Return empty schema on error for now
+        return SchemaResponse(
+            database_id=database_id,
+            dialect="unknown",
+            tables=[],
+            table_count=0,
+            last_updated=datetime.now(),
+        )
 
 
 @router.post("/schema/register")
@@ -323,15 +340,30 @@ async def health_check() -> HealthResponse:
 
     Returns health status of the API and its components.
     """
+    # Check database health
+    db_status = "unhealthy"
+    try:
+        db_manager = await get_database()
+        if await db_manager.health_check():
+            db_status = "healthy"
+    except Exception as e:
+        logger.warning("health_check_database_error", error=str(e))
+        db_status = "unhealthy"
+
+    # Determine overall status
+    components = {
+        "api": "healthy",
+        "database": db_status,
+        "model": "not_loaded",  # TODO: Check model status in Phase 1.3
+    }
+
+    overall_status = "healthy" if db_status == "healthy" else "degraded"
+
     return HealthResponse(
-        status="healthy",
+        status=overall_status,
         version=__version__,
         timestamp=datetime.now(),
-        components={
-            "api": "healthy",
-            "database": "healthy",
-            "model": "healthy",
-        },
+        components=components,
     )
 
 
