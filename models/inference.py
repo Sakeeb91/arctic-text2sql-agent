@@ -347,6 +347,77 @@ class InferenceEngine:
         result = await self.generate(prompt, config, extract_sql=True)
         return result.sql
 
+    async def generate_batch(
+        self,
+        prompts: list[str],
+        config: GenerationConfig | None = None,
+        extract_sql: bool = True,
+    ) -> list[InferenceResult]:
+        """
+        Generate text from multiple prompts in batch.
+
+        This method processes prompts sequentially but provides a
+        convenient interface for batch processing. For true parallel
+        processing, use async gather with generate().
+
+        Args:
+            prompts: List of input prompts
+            config: Generation configuration (uses default if None)
+            extract_sql: Whether to extract SQL from outputs
+
+        Returns:
+            List of InferenceResult for each prompt
+
+        Raises:
+            TokenLimitExceededException: If any input too long
+            ModelInferenceException: If generation fails
+        """
+        logger.info(
+            "batch_inference_starting",
+            batch_size=len(prompts),
+        )
+
+        results: list[InferenceResult] = []
+        total_time_ms = 0.0
+
+        for i, prompt in enumerate(prompts):
+            try:
+                result = await self.generate(prompt, config, extract_sql)
+                results.append(result)
+                total_time_ms += result.inference_time_ms
+
+                logger.debug(
+                    "batch_item_complete",
+                    item_index=i,
+                    inference_time_ms=round(result.inference_time_ms, 2),
+                    sql_extracted=result.sql is not None,
+                )
+            except Exception as e:
+                logger.error(
+                    "batch_item_failed",
+                    item_index=i,
+                    error=str(e),
+                )
+                # Add failed result with error metadata
+                results.append(
+                    InferenceResult(
+                        generated_text="",
+                        sql=None,
+                        confidence=0.0,
+                        metadata={"error": str(e), "item_index": i},
+                    )
+                )
+
+        logger.info(
+            "batch_inference_complete",
+            batch_size=len(prompts),
+            successful=sum(1 for r in results if r.sql is not None),
+            total_time_ms=round(total_time_ms, 2),
+            avg_time_ms=round(total_time_ms / len(prompts), 2) if prompts else 0,
+        )
+
+        return results
+
 
 # Global inference engine
 _inference_engine: InferenceEngine | None = None
