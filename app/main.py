@@ -157,6 +157,11 @@ app = FastAPI(
 # Setup middleware
 setup_middleware(app, cors_origins=settings.api.cors_origins_list)
 
+# Setup rate limiting (Phase 2.2: Security Implementation)
+from app.security.rate_limiting import setup_rate_limiting
+
+setup_rate_limiting(app)
+
 # Include API routes
 app.include_router(router)
 
