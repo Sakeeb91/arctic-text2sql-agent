@@ -244,3 +244,4 @@ async def close_database() -> None:
     if _db_manager:
         await _db_manager.close()
         _db_manager = None
+
