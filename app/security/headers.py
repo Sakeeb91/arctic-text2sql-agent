@@ -54,9 +54,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Content Security Policy - restrictive for API
         response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; "
-            "frame-ancestors 'none'; "
-            "base-uri 'none';"
+            "default-src 'none'; " "frame-ancestors 'none'; " "base-uri 'none';"
         )
 
         # Referrer policy - don't leak referrer to external sites

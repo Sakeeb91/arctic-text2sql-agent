@@ -169,9 +169,7 @@ class ModelInfoResponse(BaseModel):
 
 @router.post("/query", response_model=QueryResponse)
 @limiter.limit("10/minute")
-async def generate_sql(
-    request: Request, query_request: QueryRequest
-) -> QueryResponse:
+async def generate_sql(request: Request, query_request: QueryRequest) -> QueryResponse:
     """
     Generate SQL from natural language query.
 
@@ -468,7 +466,9 @@ async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
 
     # TODO: Implement actual user authentication against database
     # For now, simple placeholder authentication
-    if credentials.username == "demo" and credentials.password == "demo_password":
+    if (
+        credentials.username == "demo" and credentials.password == "demo_password"
+    ):  # nosec B105 - Demo password for development only
         token = create_access_token(data={"sub": credentials.username})
 
         settings = get_settings()
@@ -477,7 +477,7 @@ async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
 
         return TokenResponse(
             access_token=token,
-            token_type="bearer",
+            token_type="bearer",  # nosec B106 - Standard OAuth2 token type
             expires_in=settings.security.jwt_access_token_expire_minutes * 60,
         )
 

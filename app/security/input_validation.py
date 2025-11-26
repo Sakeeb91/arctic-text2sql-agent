@@ -175,7 +175,10 @@ def validate_database_id(database_id: str) -> tuple[bool, str | None]:
 
     # Check format (alphanumeric, underscores, hyphens only)
     if not re.match(r"^[a-zA-Z0-9_-]+$", database_id):
-        return False, "Database ID can only contain letters, numbers, underscores, and hyphens"
+        return (
+            False,
+            "Database ID can only contain letters, numbers, underscores, and hyphens",
+        )
 
     # Must start with letter or number
     if not database_id[0].isalnum():
@@ -290,7 +293,9 @@ def create_query_whitelist() -> set[str]:
     }
 
 
-def check_query_against_whitelist(sql: str, whitelist: set[str] | None = None) -> tuple[bool, list[str]]:
+def check_query_against_whitelist(
+    sql: str, whitelist: set[str] | None = None
+) -> tuple[bool, list[str]]:
     """
     Check if SQL query only uses whitelisted keywords.
 
@@ -311,8 +316,17 @@ def check_query_against_whitelist(sql: str, whitelist: set[str] | None = None) -
 
     # List of dangerous keywords that should never be allowed
     dangerous_keywords = {
-        "DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE",
-        "EXEC", "EXECUTE", "GRANT", "REVOKE"
+        "DROP",
+        "DELETE",
+        "UPDATE",
+        "INSERT",
+        "ALTER",
+        "CREATE",
+        "TRUNCATE",
+        "EXEC",
+        "EXECUTE",
+        "GRANT",
+        "REVOKE",
     }
 
     # Extract potential SQL keywords

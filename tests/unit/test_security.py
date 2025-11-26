@@ -38,7 +38,9 @@ class TestJWTAuthentication:
         # Decode and verify
         settings = get_settings()
         payload = jwt.decode(
-            token, settings.security.secret_key, algorithms=[settings.security.jwt_algorithm]
+            token,
+            settings.security.secret_key,
+            algorithms=[settings.security.jwt_algorithm],
         )
         assert payload["sub"] == "test_user"
         assert "exp" in payload
@@ -53,7 +55,9 @@ class TestJWTAuthentication:
 
         settings = get_settings()
         payload = jwt.decode(
-            token, settings.security.secret_key, algorithms=[settings.security.jwt_algorithm]
+            token,
+            settings.security.secret_key,
+            algorithms=[settings.security.jwt_algorithm],
         )
         assert payload["sub"] == "test_user"
 
@@ -223,7 +227,9 @@ class TestSQLInjectionDetection:
 
     def test_validate_sql_query_too_long(self):
         """Test SQL validation rejects overly long queries."""
-        sql = "SELECT * FROM users WHERE " + " AND ".join([f"col{i} = 1" for i in range(1000)])
+        sql = "SELECT * FROM users WHERE " + " AND ".join(
+            [f"col{i} = 1" for i in range(1000)]
+        )
         is_valid, errors = validate_sql_query(sql, max_length=1000)
         assert is_valid is False
         assert any("maximum length" in e.lower() for e in errors)
