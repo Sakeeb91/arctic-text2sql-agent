@@ -4,8 +4,8 @@ FastAPI application entry point.
 This module initializes and configures the Arctic Text2SQL API application.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 
@@ -14,7 +14,8 @@ from app.config import get_settings
 from app.logging_config import configure_logging, get_logger
 from app.middleware import setup_middleware
 from app.routes import router
-from db.connection import get_database, close_database
+from db.connection import close_database, get_database
+from models.loader import get_model_loader, unload_model
 
 # Initialize settings
 settings = get_settings()
@@ -61,15 +62,42 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Continue startup even if database fails - allows health checks to report status
         pass
 
-    # Load model
-    # TODO: Initialize model loader (Phase 1.3)
-    logger.info(
-        "model_loading",
-        model_name=settings.huggingface.model_name,
-        device=settings.huggingface.device,
-    )
+    # Load model (Phase 1.3: HuggingFace Model Integration)
+    model_loaded = False
+    if settings.huggingface.token:
+        logger.info(
+            "model_loading",
+            model_name=settings.huggingface.model_name,
+            device=settings.huggingface.device,
+            enable_8bit=settings.huggingface.enable_8bit_quantization,
+            enable_4bit=settings.huggingface.enable_4bit_quantization,
+        )
+        try:
+            model_loader = await get_model_loader()
+            await model_loader.load()
+            await model_loader.warmup()
+            model_loaded = True
+            model_info = model_loader.get_info()
+            logger.info(
+                "model_loaded",
+                model_name=model_info.model_name,
+                device=model_info.device,
+                quantization=model_info.quantization,
+                memory_mb=model_info.memory_usage_mb,
+            )
+        except Exception as e:
+            logger.warning(
+                "model_loading_skipped",
+                error=str(e),
+                message="Model loading failed, API will run without model inference",
+            )
+    else:
+        logger.warning(
+            "model_loading_skipped",
+            message="No HUGGINGFACE_TOKEN provided, model will not be loaded",
+        )
 
-    logger.info("application_started")
+    logger.info("application_started", model_loaded=model_loaded)
 
     yield
 
@@ -81,7 +109,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_database()
     logger.info("database_closed")
 
-    # TODO: Unload model (Phase 1.3)
+    # Unload model (Phase 1.3: HuggingFace Model Integration)
+    logger.info("model_unloading")
+    unload_model()
+    logger.info("model_unloaded")
 
     logger.info("application_stopped")
 
