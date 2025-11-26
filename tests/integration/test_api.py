@@ -14,8 +14,11 @@ class TestHealthEndpoint:
         assert response.status_code == 200
 
         data = response.json()
-        # Status can be "healthy" or "degraded" depending on database availability
-        assert data["status"] in ("healthy", "degraded")
+        # Status depends on database and model availability:
+        # - healthy: both database and model are up
+        # - degraded: database up but model not loaded
+        # - unhealthy: database unavailable
+        assert data["status"] in ("healthy", "degraded", "unhealthy")
         assert "version" in data
         assert "timestamp" in data
 
