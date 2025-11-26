@@ -7,12 +7,13 @@ This module defines all REST API endpoints for the Arctic Text2SQL Agent.
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app import __version__
 from app.config import get_settings
 from app.logging_config import get_logger
+from app.security import limiter, validate_database_id, validate_natural_language_query
 from db.connection import get_database
 from models.loader import get_model_loader
 
@@ -167,18 +168,52 @@ class ModelInfoResponse(BaseModel):
 
 
 @router.post("/query", response_model=QueryResponse)
-async def generate_sql(request: QueryRequest) -> QueryResponse:
+@limiter.limit("10/minute")
+async def generate_sql(
+    request: Request, query_request: QueryRequest
+) -> QueryResponse:
     """
     Generate SQL from natural language query.
 
     Uses the agent-based approach with multi-step reasoning and self-correction
     to generate accurate SQL queries from natural language questions.
+
+    Rate limit: 10 requests per minute per client.
     """
+    # Validate natural language query (Phase 2.2: Security Implementation)
+    is_valid_query, query_errors = validate_natural_language_query(query_request.query)
+    if not is_valid_query:
+        logger.warning(
+            "invalid_nl_query",
+            errors=query_errors,
+            database_id=query_request.database_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Invalid query",
+                "messages": query_errors,
+            },
+        )
+
+    # Validate database ID (Phase 2.2: Security Implementation)
+    is_valid_db, db_error = validate_database_id(query_request.database_id)
+    if not is_valid_db:
+        logger.warning(
+            "invalid_database_id",
+            error=db_error,
+            database_id=query_request.database_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": db_error},
+        )
+
     logger.info(
         "generate_sql_request",
-        database_id=request.database_id,
-        execute=request.execute,
-        show_reasoning=request.show_reasoning,
+        database_id=query_request.database_id,
+        execute=query_request.execute,
+        show_reasoning=query_request.show_reasoning,
     )
 
     # TODO: Implement actual SQL generation
@@ -198,35 +233,75 @@ async def generate_sql(request: QueryRequest) -> QueryResponse:
 
 
 @router.post("/validate", response_model=ValidationResponse)
-async def validate_sql(request: ValidationRequest) -> ValidationResponse:
+@limiter.limit("20/minute")
+async def validate_sql(
+    request: Request, validation_request: ValidationRequest
+) -> ValidationResponse:
     """
     Validate SQL syntax and semantics.
 
     Checks if the provided SQL is syntactically correct and matches
     the database schema.
+
+    Rate limit: 20 requests per minute per client.
     """
+    # Import validation utilities (Phase 2.2: Security Implementation)
+    from app.security import validate_sql_query
+
+    # Validate database ID
+    is_valid_db, db_error = validate_database_id(validation_request.database_id)
+    if not is_valid_db:
+        logger.warning(
+            "invalid_database_id",
+            error=db_error,
+            database_id=validation_request.database_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": db_error},
+        )
+
     logger.info(
         "validate_sql_request",
-        database_id=request.database_id,
+        database_id=validation_request.database_id,
     )
 
-    # TODO: Implement actual validation
+    # Validate SQL query for injection patterns
+    is_valid, validation_errors = validate_sql_query(validation_request.sql)
+
+    # TODO: Implement actual validation logic (syntax check, schema match)
     return ValidationResponse(
-        valid=True,
-        errors=[],
-        warnings=[],
+        valid=is_valid,
+        errors=validation_errors if not is_valid else [],
+        warnings=validation_errors if is_valid and validation_errors else [],
         suggested_fixes=None,
     )
 
 
 @router.get("/schema/{database_id}", response_model=SchemaResponse)
-async def get_schema(database_id: str) -> SchemaResponse:
+@limiter.limit("30/minute")
+async def get_schema(request: Request, database_id: str) -> SchemaResponse:
     """
     Get database schema information.
 
     Returns table names, column definitions, and relationships
     for the specified database.
+
+    Rate limit: 30 requests per minute per client.
     """
+    # Validate database ID (Phase 2.2: Security Implementation)
+    is_valid_db, db_error = validate_database_id(database_id)
+    if not is_valid_db:
+        logger.warning(
+            "invalid_database_id",
+            error=db_error,
+            database_id=database_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": db_error},
+        )
+
     logger.info("get_schema_request", database_id=database_id)
 
     try:
@@ -256,21 +331,39 @@ async def get_schema(database_id: str) -> SchemaResponse:
 
 
 @router.post("/schema/register")
-async def register_schema(request: SchemaRequest) -> dict[str, str]:
+@limiter.limit("10/minute")
+async def register_schema(
+    request: Request, schema_request: SchemaRequest
+) -> dict[str, str]:
     """
     Register a new database schema.
 
     Connects to the database, extracts schema information,
     and stores it for future query generation.
+
+    Rate limit: 10 requests per minute per client.
     """
+    # Validate database ID
+    is_valid_db, db_error = validate_database_id(schema_request.database_id)
+    if not is_valid_db:
+        logger.warning(
+            "invalid_database_id",
+            error=db_error,
+            database_id=schema_request.database_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": db_error},
+        )
+
     logger.info(
         "register_schema_request",
-        database_id=request.database_id,
-        dialect=request.dialect,
+        database_id=schema_request.database_id,
+        dialect=schema_request.dialect,
     )
 
     # TODO: Implement actual registration
-    return {"status": "registered", "database_id": request.database_id}
+    return {"status": "registered", "database_id": schema_request.database_id}
 
 
 # =============================================================================
@@ -279,12 +372,15 @@ async def register_schema(request: SchemaRequest) -> dict[str, str]:
 
 
 @router.get("/agent/reasoning/{query_id}")
-async def get_reasoning_trace(query_id: str) -> dict[str, Any]:
+@limiter.limit("30/minute")
+async def get_reasoning_trace(request: Request, query_id: str) -> dict[str, Any]:
     """
     Get detailed reasoning trace for a query.
 
     Returns the full agent reasoning history including
     thoughts, actions, and observations.
+
+    Rate limit: 30 requests per minute per client.
     """
     logger.info("get_reasoning_trace", query_id=query_id)
 
@@ -297,7 +393,9 @@ async def get_reasoning_trace(query_id: str) -> dict[str, Any]:
 
 
 @router.post("/agent/retry")
+@limiter.limit("10/minute")
 async def retry_query(
+    request: Request,
     query_id: str = Query(..., description="Query ID to retry"),
     correction_hint: str | None = Query(
         None, description="Optional hint for correction"
@@ -308,6 +406,8 @@ async def retry_query(
 
     The agent will use the previous attempt and any provided hints
     to generate a corrected SQL query.
+
+    Rate limit: 10 requests per minute per client.
     """
     logger.info(
         "retry_query_request",
@@ -327,6 +427,65 @@ async def retry_query(
         row_count=None,
         reasoning_trace=None,
         warnings=[],
+    )
+
+
+# =============================================================================
+# Authentication Endpoints (Phase 2.2: Security Implementation)
+# =============================================================================
+
+
+class LoginRequest(BaseModel):
+    """Request model for authentication."""
+
+    username: str = Field(..., min_length=3, description="Username")
+    password: str = Field(..., min_length=8, description="Password")
+
+
+class TokenResponse(BaseModel):
+    """Response model for token generation."""
+
+    access_token: str = Field(..., description="JWT access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    expires_in: int = Field(..., description="Token expiration time in seconds")
+
+
+@router.post("/auth/token", response_model=TokenResponse)
+@limiter.limit("5/minute")
+async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
+    """
+    Generate JWT access token.
+
+    This endpoint authenticates users and returns a JWT token for API access.
+
+    Rate limit: 5 requests per minute per client.
+
+    Note: In production, this should validate against a user database.
+    Currently uses placeholder authentication for development.
+    """
+    # Import auth utilities
+    from app.security import create_access_token
+
+    # TODO: Implement actual user authentication against database
+    # For now, simple placeholder authentication
+    if credentials.username == "demo" and credentials.password == "demo_password":
+        token = create_access_token(data={"sub": credentials.username})
+
+        settings = get_settings()
+
+        logger.info("user_authenticated", username=credentials.username)
+
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            expires_in=settings.security.jwt_access_token_expire_minutes * 60,
+        )
+
+    logger.warning("authentication_failed", username=credentials.username)
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Incorrect username or password",
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 
