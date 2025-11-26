@@ -466,9 +466,7 @@ async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
 
     # TODO: Implement actual user authentication against database
     # For now, simple placeholder authentication
-    if (
-        credentials.username == "demo" and credentials.password == "demo_password"
-    ):  # nosec B105 - Demo password for development only
+    if credentials.username == "demo" and credentials.password == "demo_password":  # nosec B105
         token = create_access_token(data={"sub": credentials.username})
 
         settings = get_settings()
