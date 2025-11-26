@@ -11,8 +11,10 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from app import __version__
+from app.config import get_settings
 from app.logging_config import get_logger
 from db.connection import get_database
+from models.loader import get_model_loader
 
 logger = get_logger(__name__)
 
@@ -350,14 +352,30 @@ async def health_check() -> HealthResponse:
         logger.warning("health_check_database_error", error=str(e))
         db_status = "unhealthy"
 
+    # Check model health (Phase 1.3: HuggingFace Model Integration)
+    model_status = "not_loaded"
+    try:
+        model_loader = await get_model_loader()
+        if model_loader.is_loaded:
+            model_status = "healthy"
+    except Exception as e:
+        logger.debug("health_check_model_status", error=str(e))
+        model_status = "not_loaded"
+
     # Determine overall status
     components = {
         "api": "healthy",
         "database": db_status,
-        "model": "not_loaded",  # TODO: Check model status in Phase 1.3
+        "model": model_status,
     }
 
-    overall_status = "healthy" if db_status == "healthy" else "degraded"
+    # API is healthy if database works; degraded if only model missing
+    if db_status == "healthy" and model_status == "healthy":
+        overall_status = "healthy"
+    elif db_status == "healthy":
+        overall_status = "degraded"
+    else:
+        overall_status = "unhealthy"
 
     return HealthResponse(
         status=overall_status,
@@ -374,10 +392,24 @@ async def get_model_info() -> ModelInfoResponse:
 
     Returns model name, status, and configuration.
     """
-    # TODO: Implement actual model info retrieval
-    return ModelInfoResponse(
-        model_name="Snowflake/Arctic-Text2SQL-R1-7B",
-        model_loaded=False,
-        device="cpu",
-        quantization=None,
-    )
+    settings = get_settings()
+
+    try:
+        model_loader = await get_model_loader()
+        model_info = model_loader.get_info()
+
+        return ModelInfoResponse(
+            model_name=model_info.model_name,
+            model_loaded=model_info.loaded,
+            device=model_info.device,
+            quantization=model_info.quantization,
+        )
+    except Exception as e:
+        logger.debug("get_model_info_error", error=str(e))
+        # Return default info if model loader not initialized
+        return ModelInfoResponse(
+            model_name=settings.huggingface.model_name,
+            model_loaded=False,
+            device=settings.huggingface.device,
+            quantization=None,
+        )
