@@ -50,7 +50,7 @@ def create_access_token(
 
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
 
-    encoded_jwt = jwt.encode(
+    encoded_jwt: str = jwt.encode(
         to_encode,
         settings.security.secret_key,
         algorithm=settings.security.jwt_algorithm,
@@ -83,7 +83,7 @@ async def verify_token(
     settings = get_settings()
 
     try:
-        payload = jwt.decode(
+        payload: dict[str, Any] = jwt.decode(
             credentials.credentials,
             settings.security.secret_key,
             algorithms=[settings.security.jwt_algorithm],

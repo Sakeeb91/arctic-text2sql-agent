@@ -47,7 +47,8 @@ def get_rate_limit_key(request: Request) -> str:
         return f"token:{token_hash}"
 
     # Fallback to IP address
-    return get_remote_address(request)
+    ip_address: str = get_remote_address(request)
+    return ip_address
 
 
 # Initialize limiter with configuration
@@ -105,12 +106,13 @@ async def rate_limit_exceeded_handler(
         client=get_rate_limit_key(request),
     )
 
+    retry_after: str | None = exc.retry_after if hasattr(exc, "retry_after") else None
     return {
         "error": {
             "code": "RATE_LIMIT_EXCEEDED",
             "message": "Too many requests. Please try again later.",
             "details": {
-                "retry_after": exc.retry_after if hasattr(exc, "retry_after") else None,
+                "retry_after": retry_after,
             },
         }
     }
