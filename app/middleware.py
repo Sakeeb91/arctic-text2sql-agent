@@ -6,6 +6,7 @@ This module provides middleware for:
 - Request ID generation
 - CORS handling
 - Error handling
+- Security headers
 """
 
 import time
@@ -148,6 +149,12 @@ def setup_middleware(app: FastAPI, cors_origins: list[str] | None = None) -> Non
         app = FastAPI()
         setup_middleware(app, cors_origins=["http://localhost:3000"])
     """
+    # Import security headers middleware here to avoid circular imports
+    from app.security.headers import SecurityHeadersMiddleware
+
+    # Security headers middleware (first in chain)
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
