@@ -9,7 +9,6 @@ This module provides:
 """
 
 import re
-from typing import Any
 
 from app.logging_config import get_logger
 
