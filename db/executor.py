@@ -248,7 +248,7 @@ class SafeQueryExecutor:
             )
 
             result.execution_time_ms = execution_time_ms
-            return result  # type: ignore[no-any-return]
+            return result
 
         except asyncio.TimeoutError as e:
             logger.error(
@@ -274,7 +274,7 @@ class SafeQueryExecutor:
                 details={"error": str(e)},
             ) from e
 
-    @retry(  # type: ignore[misc, untyped-decorator]
+    @retry(
         retry=retry_if_exception_type((ConnectionError, OSError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
