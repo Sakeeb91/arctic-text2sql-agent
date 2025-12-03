@@ -45,7 +45,7 @@ def create_sql_executor_tool(
         A tool function for SQL execution
     """
 
-    @tool  # type: ignore[misc]
+    @tool
     def sql_executor(query: str) -> str:
         """
         Execute SQL queries on the database and return results.
@@ -137,7 +137,7 @@ def create_sql_executor_tool(
 # =============================================================================
 
 
-@tool  # type: ignore[misc]
+@tool
 def result_validator(results: str, original_question: str, sql_query: str) -> str:
     """
     Validate if query results make sense for the original question.
@@ -246,7 +246,7 @@ def create_schema_inspector_tool(db_manager: Any) -> Any:
         A tool function for schema inspection
     """
 
-    @tool  # type: ignore[misc]
+    @tool
     def schema_inspector(table_name: str) -> str:
         """
         Get detailed information about a specific database table.
@@ -357,7 +357,7 @@ def create_sql_generator_tool(model_loader: Any, schema_description: str) -> Any
         A tool function for SQL generation
     """
 
-    @tool  # type: ignore[misc]
+    @tool
     def sql_generator(question: str) -> str:
         """
         Generate SQL query from a natural language question.
