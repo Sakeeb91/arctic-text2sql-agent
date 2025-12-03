@@ -7,7 +7,7 @@ This module defines all REST API endpoints for the Arctic Text2SQL Agent.
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app import __version__
@@ -214,20 +214,58 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
         show_reasoning=query_request.show_reasoning,
     )
 
-    # TODO: Implement actual SQL generation
-    # This is a placeholder response
-    return QueryResponse(
-        sql="SELECT * FROM customers WHERE state = 'California'",
-        confidence=0.95,
-        execution_time_ms=150.5,
-        dialect="postgresql",
-        valid_syntax=True,
-        validation_status="validated",
-        results=None,
-        row_count=None,
-        reasoning_trace=None,
-        warnings=[],
-    )
+    # Import the Text2SQL engine
+    from app.text2sql_engine import get_text2sql_engine
+
+    try:
+        # Get engine instance
+        engine = await get_text2sql_engine()
+
+        # Generate SQL
+        result = await engine.generate_sql(
+            natural_query=query_request.query,
+            database_id=query_request.database_id,
+            execute=query_request.execute,
+            show_reasoning=query_request.show_reasoning,
+            max_rows=query_request.max_rows,
+        )
+
+        # Convert reasoning trace to response model
+        reasoning_trace = None
+        if result.reasoning_trace:
+            reasoning_trace = [
+                ReasoningStep(
+                    step=step.step,
+                    thought=step.thought,
+                    action=step.action,
+                    observation=step.observation,
+                )
+                for step in result.reasoning_trace
+            ]
+
+        return QueryResponse(
+            sql=result.sql,
+            confidence=result.confidence,
+            execution_time_ms=result.execution_time_ms,
+            dialect=result.dialect,
+            valid_syntax=result.valid_syntax,
+            validation_status=result.validation_status.value,
+            results=result.execution_results,
+            row_count=result.row_count,
+            reasoning_trace=reasoning_trace,
+            warnings=result.warnings,
+        )
+
+    except Exception as e:
+        logger.error(
+            "generate_sql_error",
+            error=str(e),
+            database_id=query_request.database_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "SQL generation failed", "message": str(e)},
+        ) from e
 
 
 @router.post("/validate", response_model=ValidationResponse)
@@ -264,16 +302,47 @@ async def validate_sql(
         database_id=validation_request.database_id,
     )
 
-    # Validate SQL query for injection patterns
-    is_valid, validation_errors = validate_sql_query(validation_request.sql)
+    # Validate SQL query for injection patterns first
+    is_safe, security_errors = validate_sql_query(validation_request.sql)
 
-    # TODO: Implement actual validation logic (syntax check, schema match)
-    return ValidationResponse(
-        valid=is_valid,
-        errors=validation_errors if not is_valid else [],
-        warnings=validation_errors if is_valid and validation_errors else [],
-        suggested_fixes=None,
-    )
+    if not is_safe:
+        return ValidationResponse(
+            valid=False,
+            errors=security_errors,
+            warnings=[],
+            suggested_fixes=["Remove dangerous SQL patterns from query"],
+        )
+
+    # Use Text2SQL engine for comprehensive validation
+    from app.text2sql_engine import get_text2sql_engine
+
+    try:
+        engine = await get_text2sql_engine()
+        is_valid, errors, warnings = await engine.validate_sql(
+            sql=validation_request.sql,
+            database_id=validation_request.database_id,
+        )
+
+        return ValidationResponse(
+            valid=is_valid,
+            errors=errors,
+            warnings=warnings,
+            suggested_fixes=None,
+        )
+
+    except Exception as e:
+        logger.error(
+            "validate_sql_error",
+            error=str(e),
+            database_id=validation_request.database_id,
+        )
+        # Fall back to basic validation on error
+        return ValidationResponse(
+            valid=is_safe,
+            errors=[],
+            warnings=[f"Schema validation unavailable: {str(e)}"],
+            suggested_fixes=None,
+        )
 
 
 @router.get("/schema/{database_id}", response_model=SchemaResponse)
@@ -413,18 +482,17 @@ async def retry_query(
         has_hint=correction_hint is not None,
     )
 
-    # TODO: Implement actual retry logic
-    return QueryResponse(
-        sql="SELECT * FROM customers",
-        confidence=0.85,
-        execution_time_ms=200.0,
-        dialect="postgresql",
-        valid_syntax=True,
-        validation_status="validated",
-        results=None,
-        row_count=None,
-        reasoning_trace=None,
-        warnings=[],
+    # Note: Full retry implementation requires query history storage (database table)
+    # This is a placeholder that returns a standard response
+    # TODO: Issue #18 (smolagents) will provide full retry with history tracking
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail={
+            "error": "Retry functionality not yet implemented",
+            "message": "Query history storage is required for retry. "
+            "Use POST /api/v1/query to generate a new query.",
+            "query_id": query_id,
+        },
     )
 
 
