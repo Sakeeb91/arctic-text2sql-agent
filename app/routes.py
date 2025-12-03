@@ -7,7 +7,7 @@ This module defines all REST API endpoints for the Arctic Text2SQL Agent.
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app import __version__
@@ -438,62 +438,167 @@ async def register_schema(
 # =============================================================================
 
 
-@router.get("/agent/reasoning/{query_id}")
+class AgentReasoningResponse(BaseModel):
+    """Response model for agent reasoning trace."""
+
+    query_id: str = Field(..., description="Query identifier")
+    natural_query: str = Field(..., description="Original natural language question")
+    database_id: str = Field(..., description="Database identifier")
+    sql: str = Field(..., description="Generated SQL query")
+    confidence: float = Field(..., description="Confidence score")
+    success: bool = Field(..., description="Whether query succeeded")
+    reasoning_trace: list[ReasoningStep] = Field(
+        ..., description="Full agent reasoning trace"
+    )
+    total_steps: int = Field(..., description="Total reasoning steps taken")
+    created_at: datetime = Field(..., description="When query was created")
+
+
+class RetryRequest(BaseModel):
+    """Request model for retry with correction hints."""
+
+    query_id: str = Field(..., description="Query ID to retry")
+    correction_hint: str | None = Field(
+        None, description="Optional hint for how to correct the query"
+    )
+
+
+@router.get("/agent/reasoning/{query_id}", response_model=AgentReasoningResponse)
 @limiter.limit("30/minute")
-async def get_reasoning_trace(request: Request, query_id: str) -> dict[str, Any]:
+async def get_reasoning_trace(
+    request: Request, query_id: str
+) -> AgentReasoningResponse:
     """
     Get detailed reasoning trace for a query.
 
     Returns the full agent reasoning history including
-    thoughts, actions, and observations.
+    thoughts, actions, and observations from the ReAct loop.
 
     Rate limit: 30 requests per minute per client.
     """
     logger.info("get_reasoning_trace", query_id=query_id)
 
-    # TODO: Implement actual reasoning retrieval
-    return {
-        "query_id": query_id,
-        "reasoning_trace": [],
-        "total_steps": 0,
-    }
+    from app.agent import get_agent_engine
+
+    try:
+        engine = await get_agent_engine()
+        history = engine.get_query_history(query_id)
+
+        if history is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Query not found", "query_id": query_id},
+            )
+
+        # Convert reasoning trace to response model
+        reasoning_trace = [
+            ReasoningStep(
+                step=step.step_number,
+                thought=step.content,
+                action=step.tool_name,
+                observation=step.tool_output,
+            )
+            for step in history.reasoning_trace
+        ]
+
+        return AgentReasoningResponse(
+            query_id=history.query_id,
+            natural_query=history.natural_query,
+            database_id=history.database_id,
+            sql=history.sql,
+            confidence=history.confidence,
+            success=history.success,
+            reasoning_trace=reasoning_trace,
+            total_steps=len(history.reasoning_trace),
+            created_at=history.created_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_reasoning_trace_error", error=str(e), query_id=query_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to retrieve reasoning trace", "message": str(e)},
+        ) from e
 
 
-@router.post("/agent/retry")
+@router.post("/agent/retry", response_model=QueryResponse)
 @limiter.limit("10/minute")
-async def retry_query(
-    request: Request,
-    query_id: str = Query(..., description="Query ID to retry"),
-    correction_hint: str | None = Query(
-        None, description="Optional hint for correction"
-    ),
-) -> QueryResponse:
+async def retry_query(request: Request, retry_request: RetryRequest) -> QueryResponse:
     """
     Retry a failed query with optional correction hints.
 
     The agent will use the previous attempt and any provided hints
-    to generate a corrected SQL query.
+    to generate a corrected SQL query using the ReAct framework.
 
     Rate limit: 10 requests per minute per client.
     """
     logger.info(
         "retry_query_request",
-        query_id=query_id,
-        has_hint=correction_hint is not None,
+        query_id=retry_request.query_id,
+        has_hint=retry_request.correction_hint is not None,
     )
 
-    # Note: Full retry implementation requires query history storage (database table)
-    # This is a placeholder that returns a standard response
-    # TODO: Issue #18 (smolagents) will provide full retry with history tracking
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail={
-            "error": "Retry functionality not yet implemented",
-            "message": "Query history storage is required for retry. "
-            "Use POST /api/v1/query to generate a new query.",
-            "query_id": query_id,
-        },
-    )
+    from app.agent import get_agent_engine
+    from app.exceptions import QueryNotFoundException
+
+    try:
+        engine = await get_agent_engine()
+        result = await engine.retry_query(
+            query_id=retry_request.query_id,
+            correction_hint=retry_request.correction_hint,
+        )
+
+        # Convert reasoning trace to response model
+        reasoning_trace = None
+        if result.reasoning_trace:
+            reasoning_trace = [
+                ReasoningStep(
+                    step=step.step_number,
+                    thought=step.content,
+                    action=step.tool_name,
+                    observation=step.tool_output,
+                )
+                for step in result.reasoning_trace
+            ]
+
+        return QueryResponse(
+            sql=result.sql,
+            confidence=result.confidence,
+            execution_time_ms=result.execution_time_ms,
+            dialect="postgresql",  # TODO: Get from engine
+            valid_syntax=True,
+            validation_status=(
+                result.validation_result.outcome.value
+                if result.validation_result
+                else "not_validated"
+            ),
+            results=result.execution_results,
+            row_count=result.row_count,
+            reasoning_trace=reasoning_trace,
+            warnings=result.warnings,
+        )
+
+    except QueryNotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "Query not found",
+                "message": str(e),
+                "query_id": retry_request.query_id,
+            },
+        ) from e
+    except Exception as e:
+        logger.error(
+            "retry_query_error",
+            error=str(e),
+            query_id=retry_request.query_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Retry failed", "message": str(e)},
+        ) from e
 
 
 # =============================================================================
