@@ -12,6 +12,9 @@ huggingface_hub==0.20.3
 bitsandbytes==0.42.0
 numpy<2  # Required for torch 2.2.0 compatibility
 
+# Agent Framework (Issue #18: smolagents integration)
+smolagents>=1.0.0
+
 # Database
 sqlalchemy==2.0.27
 psycopg2-binary==2.9.9
