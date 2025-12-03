@@ -343,4 +343,12 @@ def reset_singletons() -> Any:
     except ImportError:
         pass  # torch not installed, skip inference engine reset
 
+    # Reset text2sql engine
+    try:
+        import app.text2sql_engine
+
+        app.text2sql_engine._text2sql_engine = None
+    except ImportError:
+        pass  # text2sql engine not available
+
     yield
