@@ -9,19 +9,20 @@ Tests cover:
 - Rate limiting utilities
 """
 
-import pytest
 from datetime import timedelta
+
+import pytest
 from jose import jwt
 
 from app.config import get_settings
 from app.security import (
+    check_query_against_whitelist,
     create_access_token,
     sanitize_input,
     scan_for_injection_patterns,
     validate_database_id,
     validate_natural_language_query,
     validate_sql_query,
-    check_query_against_whitelist,
     verify_api_key,
 )
 
