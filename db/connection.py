@@ -5,8 +5,9 @@ This module provides connection pooling, health checks, and
 async support for multiple database backends.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
