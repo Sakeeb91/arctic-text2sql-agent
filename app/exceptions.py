@@ -353,6 +353,80 @@ class AgentValidationException(AgentException):
         )
 
 
+class AgentExecutionException(AgentException):
+    """Agent execution failed during ReAct loop."""
+
+    def __init__(
+        self,
+        message: str = "Agent execution failed",
+        step_number: int | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        if step_number is not None:
+            error_details["step_number"] = step_number
+        super().__init__(
+            message=message,
+            error_code="AGENT_EXECUTION_ERROR",
+            status_code=500,
+            details=error_details,
+        )
+
+
+class AgentToolException(AgentException):
+    """Agent tool execution failed."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        message: str = "Tool execution failed",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        error_details["tool_name"] = tool_name
+        super().__init__(
+            message=f"Tool '{tool_name}' failed: {message}",
+            error_code="AGENT_TOOL_ERROR",
+            status_code=500,
+            details=error_details,
+        )
+
+
+class AgentRetryException(AgentException):
+    """Agent retry operation failed."""
+
+    def __init__(
+        self,
+        query_id: str,
+        message: str = "Retry operation failed",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        error_details["query_id"] = query_id
+        super().__init__(
+            message=message,
+            error_code="AGENT_RETRY_ERROR",
+            status_code=400,
+            details=error_details,
+        )
+
+
+class QueryNotFoundException(AgentException):
+    """Query not found in history for retry."""
+
+    def __init__(
+        self,
+        query_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Query not found in history: {query_id}",
+            error_code="QUERY_NOT_FOUND",
+            status_code=404,
+            details=details or {"query_id": query_id},
+        )
+
+
 # =============================================================================
 # API/Authentication Exceptions
 # =============================================================================
