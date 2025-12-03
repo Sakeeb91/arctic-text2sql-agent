@@ -141,7 +141,7 @@ class QueryValidator:
         # Check for SQL injection patterns
         for pattern in INJECTION_PATTERNS:
             if re.search(pattern, sql_upper):
-                errors.append(f"Potential SQL injection pattern detected")
+                errors.append("Potential SQL injection pattern detected")
                 break
 
         return errors
