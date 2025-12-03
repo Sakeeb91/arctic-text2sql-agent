@@ -274,7 +274,7 @@ class SafeQueryExecutor:
                 details={"error": str(e)},
             ) from e
 
-    @retry(  # type: ignore[misc]
+    @retry(  # type: ignore[misc, untyped-decorator]
         retry=retry_if_exception_type((ConnectionError, OSError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
