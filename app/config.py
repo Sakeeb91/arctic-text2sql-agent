@@ -122,7 +122,7 @@ class APISettings(BaseSettings):
 
 
 class AgentSettings(BaseSettings):
-    """Agent-specific configuration."""
+    """Agent-specific configuration for smolagents integration."""
 
     model_config = SettingsConfigDict(env_prefix="AGENT_", extra="ignore")
 
@@ -130,7 +130,7 @@ class AgentSettings(BaseSettings):
         default=5,
         ge=1,
         le=20,
-        description="Maximum reasoning steps for agent",
+        description="Maximum reasoning steps for agent ReAct loop",
     )
     min_confidence: float = Field(
         default=0.7,
@@ -140,7 +140,29 @@ class AgentSettings(BaseSettings):
     )
     enable_validation: bool = Field(
         default=True,
-        description="Enable output validation",
+        description="Enable output validation after SQL generation",
+    )
+    enable_self_correction: bool = Field(
+        default=True,
+        description="Enable automatic self-correction on validation failure",
+    )
+    verbosity: int = Field(
+        default=1,
+        ge=0,
+        le=2,
+        description="Agent verbosity level (0=quiet, 1=normal, 2=verbose)",
+    )
+    query_history_size: int = Field(
+        default=100,
+        ge=0,
+        le=1000,
+        description="Maximum queries to keep in history for retry",
+    )
+    execution_timeout: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="SQL execution timeout in seconds",
     )
 
 
