@@ -695,11 +695,23 @@ async def health_check() -> HealthResponse:
         logger.debug("health_check_model_status", error=str(e))
         model_status = "not_loaded"
 
+    # Check circuit breaker state for inference
+    circuit_status = "unknown"
+    try:
+        from app.text2sql_engine import get_text2sql_engine
+
+        engine = await get_text2sql_engine()
+        resilience_state = engine.get_resilience_state()
+        circuit_status = resilience_state.get("state", "unknown")
+    except Exception as e:
+        logger.debug("health_check_circuit_status", error=str(e))
+
     # Determine overall status
     components = {
         "api": "healthy",
         "database": db_status,
         "model": model_status,
+        "inference_circuit": circuit_status,
     }
 
     # API is healthy if database works; degraded if only model missing
