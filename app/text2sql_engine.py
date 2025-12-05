@@ -13,6 +13,7 @@ The Text2SQLEngine is the primary entry point for converting
 natural language questions into SQL queries.
 """
 
+import asyncio
 import re
 import time
 from dataclasses import dataclass, field
@@ -23,10 +24,12 @@ from typing import Any
 from app.config import get_settings
 from app.exceptions import (
     AgentMaxStepsExceededException,
+    CircuitBreakerOpenException,
     ModelInferenceException,
     SchemaNotFoundException,
 )
 from app.logging_config import get_logger
+from app.resilience import CircuitBreaker, CircuitBreakerConfig, compute_backoff_seconds
 from db.connection import DatabaseManager
 from db.schema import SchemaInfo, SchemaIntrospector
 
@@ -488,6 +491,17 @@ class Text2SQLEngine:
             if enable_validation is not None
             else settings.agent.enable_validation
         )
+        self._resilience_settings = settings.resilience
+        self._circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=self._resilience_settings.failure_threshold,
+                recovery_timeout_seconds=self._resilience_settings.recovery_timeout_seconds,
+                half_open_max_attempts=self._resilience_settings.half_open_max_attempts,
+            )
+        )
+        self._backoff_base = self._resilience_settings.backoff_base_seconds
+        self._backoff_max = self._resilience_settings.backoff_max_seconds
+        self._fallback_enabled = self._resilience_settings.fallback_enabled
 
         self._validator = SQLValidator(allow_mutations=False)
         self._schema_cache: dict[str, SchemaContext] = {}
@@ -497,6 +511,11 @@ class Text2SQLEngine:
             min_confidence=self._min_confidence,
             max_retries=self._max_retries,
             enable_validation=self._enable_validation,
+            resilience={
+                "failure_threshold": self._resilience_settings.failure_threshold,
+                "recovery_timeout_seconds": self._resilience_settings.recovery_timeout_seconds,
+                "half_open_max_attempts": self._resilience_settings.half_open_max_attempts,
+            },
         )
 
     async def generate_sql(
