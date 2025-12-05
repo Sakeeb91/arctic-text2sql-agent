@@ -10,5 +10,7 @@ if [[ ! -f "constraints.txt" ]]; then
   exit 1
 fi
 
-pip install -r requirements.txt -c constraints.txt
+PYTHON_BIN="${PYTHON_BIN:-python}"
+
+"${PYTHON_BIN}" -m pip install -r requirements.txt -c constraints.txt
 
