@@ -507,6 +507,12 @@ export AGENT_MAX_STEPS=3
 # See docs/IMPLEMENTATION_PLAN.md for details
 ```
 
+**Issue**: pip fails with "resolution-too-deep"
+```bash
+# Solution: install with constraints to bound dependency resolution
+pip install -r requirements.txt -c constraints.txt
+```
+
 **Issue**: Agent gets stuck in reasoning loop
 ```bash
 # Solution: Check logs for validation errors, adjust confidence threshold
