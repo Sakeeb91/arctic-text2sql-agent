@@ -14,11 +14,12 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api_models import ErrorDetail, ErrorResponse
 from app.exceptions import Text2SQLException
 from app.logging_config import get_logger, request_id_context
 
@@ -93,6 +94,7 @@ async def exception_handler(request: Request, exc: Text2SQLException) -> JSONRes
 
     Converts exceptions to JSON responses with appropriate status codes.
     """
+    request_id = request_id_context.get()
     logger.error(
         "exception_raised",
         error_code=exc.error_code,
@@ -101,10 +103,19 @@ async def exception_handler(request: Request, exc: Text2SQLException) -> JSONRes
         path=request.url.path,
     )
 
+    payload = ErrorResponse(
+        error=ErrorDetail(
+            code=exc.error_code,
+            message=exc.message,
+            details=exc.details,
+            request_id=request_id,
+        )
+    )
+
     return JSONResponse(
         status_code=exc.status_code,
-        content=exc.to_dict(),
-        headers={"X-Request-ID": request_id_context.get() or "unknown"},
+        content=payload.model_dump(),
+        headers={"X-Request-ID": request_id or "unknown"},
     )
 
 
@@ -121,16 +132,52 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         path=request.url.path,
     )
 
+    request_id = request_id_context.get()
+    payload = ErrorResponse(
+        error=ErrorDetail(
+            code="INTERNAL_SERVER_ERROR",
+            message="An unexpected error occurred",
+            details={},
+            request_id=request_id,
+        )
+    )
+
     return JSONResponse(
         status_code=500,
-        content={
-            "error": {
-                "code": "INTERNAL_SERVER_ERROR",
-                "message": "An unexpected error occurred",
-                "details": {},
-            }
-        },
-        headers={"X-Request-ID": request_id_context.get() or "unknown"},
+        content=payload.model_dump(),
+        headers={"X-Request-ID": request_id or "unknown"},
+    )
+
+
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """Normalize HTTPException responses to the standard error envelope."""
+    request_id = request_id_context.get()
+    detail_payload: dict[str, Any]
+
+    if isinstance(exc.detail, dict):
+        detail_payload = exc.detail
+    else:
+        detail_payload = {"message": str(exc.detail)}
+
+    message = (
+        detail_payload.get("message")
+        or detail_payload.get("error")
+        or str(exc.detail)
+    )
+
+    payload = ErrorResponse(
+        error=ErrorDetail(
+            code=detail_payload.get("code", "HTTP_ERROR"),
+            message=message,
+            details={k: v for k, v in detail_payload.items() if k != "message"},
+            request_id=request_id,
+        )
+    )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=payload.model_dump(),
+        headers={"X-Request-ID": request_id or "unknown"},
     )
 
 
@@ -170,9 +217,11 @@ def setup_middleware(app: FastAPI, cors_origins: list[str] | None = None) -> Non
 
     # Exception handlers
     app.add_exception_handler(Text2SQLException, exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
 
     logger.info(
         "middleware_configured",
         cors_origins=cors_origins,
     )
+
