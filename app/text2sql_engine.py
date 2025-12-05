@@ -817,49 +817,54 @@ class Text2SQLEngine:
         warnings: list[str] = []
         best_result: InferenceResult | None = None
 
+        async def _run_inference(use_examples: bool) -> InferenceResult:
+            model_loader = await get_model_loader()
+            if not model_loader.is_loaded:
+                await model_loader.load()
+
+            inference_engine = InferenceEngine(model_loader)
+            prompt = build_prompt(
+                question=natural_query,
+                schema=schema_context.serialized_schema,
+                template_type="arctic",
+                dialect=schema_context.dialect,
+                use_default_examples=use_examples,
+                context=(
+                    f"Query intent: {intent.value}"
+                    if intent != QueryIntent.UNKNOWN
+                    else None
+                ),
+            )
+            return await inference_engine.generate(prompt, extract_sql=True)
+
+        if not self._circuit_breaker.can_attempt():
+            warnings.append("Model inference temporarily unavailable (circuit open)")
+            circuit_error = CircuitBreakerOpenException(
+                details={
+                    "failure_count": self._circuit_breaker.state.failure_count,
+                    "last_error": self._circuit_breaker.state.last_error,
+                },
+                retry_after_seconds=self._resilience_settings.recovery_timeout_seconds,
+            )
+            if self._fallback_enabled:
+                return self._build_fallback_inference_result("circuit_open"), warnings
+            raise circuit_error
+
         for attempt in range(self._max_retries):
             try:
-                # Get model loader
-                model_loader = await get_model_loader()
-
-                # Ensure model is loaded
-                if not model_loader.is_loaded:
-                    await model_loader.load()
-
-                # Create inference engine
-                inference_engine = InferenceEngine(model_loader)
-
-                # Build prompt - use different strategies on retry
-                template_type = "arctic"
                 use_examples = attempt > 0  # Add examples on retry
-
-                prompt = build_prompt(
-                    question=natural_query,
-                    schema=schema_context.serialized_schema,
-                    template_type=template_type,
-                    dialect=schema_context.dialect,
-                    use_default_examples=use_examples,
-                    context=(
-                        f"Query intent: {intent.value}"
-                        if intent != QueryIntent.UNKNOWN
-                        else None
-                    ),
+                result = await self._circuit_breaker.run(
+                    lambda use_examples=use_examples: _run_inference(use_examples)
                 )
 
-                # Generate
-                result = await inference_engine.generate(prompt, extract_sql=True)
-
-                # Track best result
                 if best_result is None or result.confidence > best_result.confidence:
                     best_result = result
 
-                # Check if confidence is acceptable
                 if result.confidence >= self._min_confidence:
                     if attempt > 0:
                         result.metadata["retries"] = attempt
                     return result, warnings
 
-                # Log retry
                 logger.debug(
                     "low_confidence_retry",
                     attempt=attempt + 1,
@@ -872,7 +877,16 @@ class Text2SQLEngine:
                         f"Retry {attempt + 1}: confidence {result.confidence:.2f} "
                         f"below threshold {self._min_confidence:.2f}"
                     )
+                    delay = compute_backoff_seconds(
+                        attempt, self._backoff_base, self._backoff_max
+                    )
+                    await asyncio.sleep(delay)
 
+            except CircuitBreakerOpenException:
+                warnings.append("Model inference circuit open")
+                if self._fallback_enabled:
+                    return self._build_fallback_inference_result("circuit_open"), warnings
+                raise
             except Exception as e:
                 logger.error(
                     "generation_attempt_failed",
