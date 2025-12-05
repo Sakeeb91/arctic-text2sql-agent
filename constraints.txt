@@ -1,0 +1,7 @@
+#
+# Pinned lower bounds to avoid pip "resolution-too-deep" errors in CI.
+# Keep in sync with requirements.txt when adjusting core dependencies.
+#
+cryptography>=39.0.0
+numpy<2
+
