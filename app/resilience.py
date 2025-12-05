@@ -7,9 +7,10 @@ gracefully degrade when downstream components fail repeatedly.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Awaitable, Callable, TypeVar
+from typing import TypeVar
 
 from app.exceptions import CircuitBreakerOpenException
 from app.logging_config import get_logger
