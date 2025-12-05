@@ -368,33 +368,43 @@ class TestText2SQLEngine:
         manager.session = MagicMock()
         return manager
 
-    def test_initialization(self, mock_db_manager: MagicMock) -> None:
+    @pytest.fixture
+    def mock_settings(self) -> MagicMock:
+        """Provide settings with agent and resilience defaults."""
+        settings = MagicMock()
+        settings.agent = MagicMock(
+            min_confidence=0.7,
+            max_steps=3,
+            enable_validation=True,
+        )
+        settings.resilience = MagicMock(
+            failure_threshold=3,
+            recovery_timeout_seconds=30,
+            half_open_max_attempts=1,
+            backoff_base_seconds=0.1,
+            backoff_max_seconds=0.2,
+            fallback_enabled=True,
+        )
+        return settings
+
+    def test_initialization(
+        self, mock_db_manager: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test engine initialization."""
-        with patch("app.text2sql_engine.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(
-                agent=MagicMock(
-                    min_confidence=0.7,
-                    max_steps=3,
-                    enable_validation=True,
-                )
-            )
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
 
             engine = Text2SQLEngine(mock_db_manager)
 
             assert engine._min_confidence == 0.7
             assert engine._max_retries == 3
             assert engine._enable_validation is True
+            assert engine._resilience_settings is mock_settings.resilience
 
-    def test_initialization_custom_params(self, mock_db_manager: MagicMock) -> None:
+    def test_initialization_custom_params(
+        self, mock_db_manager: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test engine initialization with custom parameters."""
-        with patch("app.text2sql_engine.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(
-                agent=MagicMock(
-                    min_confidence=0.7,
-                    max_steps=3,
-                    enable_validation=True,
-                )
-            )
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
 
             engine = Text2SQLEngine(
                 mock_db_manager,
@@ -407,16 +417,11 @@ class TestText2SQLEngine:
             assert engine._max_retries == 5
             assert engine._enable_validation is False
 
-    def test_schema_cache_invalidation(self, mock_db_manager: MagicMock) -> None:
+    def test_schema_cache_invalidation(
+        self, mock_db_manager: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test schema cache invalidation."""
-        with patch("app.text2sql_engine.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(
-                agent=MagicMock(
-                    min_confidence=0.7,
-                    max_steps=3,
-                    enable_validation=True,
-                )
-            )
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
 
             engine = Text2SQLEngine(mock_db_manager)
 
@@ -438,16 +443,10 @@ class TestText2SQLEngine:
         self,
         mock_db_manager: MagicMock,
         sample_schema: SchemaInfo,
+        mock_settings: MagicMock,
     ) -> None:
         """Test SQL validation method."""
-        with patch("app.text2sql_engine.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(
-                agent=MagicMock(
-                    min_confidence=0.7,
-                    max_steps=3,
-                    enable_validation=True,
-                )
-            )
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
 
             engine = Text2SQLEngine(mock_db_manager)
 
@@ -476,6 +475,38 @@ class TestText2SQLEngine:
                 )
                 assert is_valid is False
                 assert len(errors) > 0
+
+    @pytest.mark.asyncio
+    async def test_generate_with_retry_uses_fallback_when_circuit_open(
+        self,
+        mock_db_manager: MagicMock,
+        sample_schema: SchemaInfo,
+        mock_settings: MagicMock,
+    ) -> None:
+        """Ensure circuit breaker open state triggers fallback response."""
+        mock_settings.resilience.recovery_timeout_seconds = 60
+
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
+            engine = Text2SQLEngine(mock_db_manager)
+            engine._circuit_breaker.state.state = "open"
+            engine._circuit_breaker.state.opened_at = datetime.utcnow()
+
+            schema_context = SchemaContext(
+                database_id="test_db",
+                dialect="postgresql",
+                schema_info=sample_schema,
+                serialized_schema="schema",
+                table_names=["customers"],
+            )
+
+            result, warnings = await engine._generate_with_retry(
+                natural_query="Show customers",
+                schema_context=schema_context,
+                intent=QueryIntent.SELECT,
+            )
+
+            assert result.metadata.get("fallback") is True
+            assert any("circuit" in w for w in warnings)
 
 
 # =============================================================================
@@ -514,7 +545,15 @@ class TestGlobalEngineManagement:
                         min_confidence=0.7,
                         max_steps=3,
                         enable_validation=True,
-                    )
+                    ),
+                    resilience=MagicMock(
+                        failure_threshold=3,
+                        recovery_timeout_seconds=30,
+                        half_open_max_attempts=1,
+                        backoff_base_seconds=0.1,
+                        backoff_max_seconds=0.2,
+                        fallback_enabled=True,
+                    ),
                 )
 
                 engine = await get_text2sql_engine()
