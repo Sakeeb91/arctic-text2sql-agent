@@ -5,6 +5,10 @@ These tests verify the data classes used for agent results,
 reasoning steps, and query history.
 """
 
+import pytest
+
+pytest.importorskip("smolagents")
+
 from datetime import datetime
 
 from app.agent.models import (

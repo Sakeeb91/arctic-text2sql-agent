@@ -5,6 +5,10 @@ These tests verify the agent-based SQL generation engine,
 including the ReAct loop, validation, and retry functionality.
 """
 
+import pytest
+
+pytest.importorskip("smolagents")
+
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -5,6 +5,10 @@ These tests verify the tool functions used by the agent for
 SQL execution, validation, and schema inspection.
 """
 
+import pytest
+
+pytest.importorskip("smolagents")
+
 from app.agent.tools import extract_sql_from_text, result_validator
 
 # =============================================================================
