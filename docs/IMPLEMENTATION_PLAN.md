@@ -347,6 +347,11 @@ async def generate_sql_with_retry(...):
     pass
 ```
 
+**Circuit Breaker & Fallbacks**:
+- Short-circuit repeated downstream failures (model or database) with a simple circuit breaker.
+- Surface breaker state via health endpoints for observability.
+- Provide safe fallback responses when resilience rules trigger to keep APIs responsive under load.
+
 ---
 
 ## Phase 3: Optimization & Scaling (Issues #8-10)
