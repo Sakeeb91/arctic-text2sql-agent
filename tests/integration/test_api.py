@@ -29,6 +29,7 @@ class TestHealthEndpoint:
 
         assert "components" in data
         assert "api" in data["components"]
+        assert "inference_circuit" in data["components"]
 
 
 class TestRootEndpoint:
