@@ -522,3 +522,23 @@ class ValidationException(APIException):
             status_code=422,
             details=error_details,
         )
+
+
+class CircuitBreakerOpenException(APIException):
+    """Circuit breaker is open to protect downstream resources."""
+
+    def __init__(
+        self,
+        message: str = "Service temporarily unavailable due to repeated failures",
+        retry_after_seconds: int | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        if retry_after_seconds is not None:
+            error_details["retry_after_seconds"] = retry_after_seconds
+        super().__init__(
+            message=message,
+            error_code="CIRCUIT_OPEN",
+            status_code=503,
+            details=error_details,
+        )

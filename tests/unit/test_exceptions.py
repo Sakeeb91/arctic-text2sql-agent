@@ -5,6 +5,7 @@ Unit tests for exception classes.
 from app.exceptions import (
     AgentMaxStepsExceededException,
     AuthenticationException,
+    CircuitBreakerOpenException,
     DatabaseConnectionException,
     InvalidQueryException,
     LowConfidenceException,
@@ -145,3 +146,11 @@ class TestAPIExceptions:
         exc = RateLimitExceededException(limit=60, window_seconds=60, retry_after=30)
         assert exc.status_code == 429
         assert exc.details["retry_after"] == 30
+
+    def test_circuit_breaker_open_exception(self) -> None:
+        """Test CircuitBreakerOpenException."""
+        exc = CircuitBreakerOpenException(retry_after_seconds=15)
+        assert exc.status_code == 503
+        assert exc.error_code == "CIRCUIT_OPEN"
+        assert exc.details["retry_after_seconds"] == 15
+
