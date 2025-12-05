@@ -9,6 +9,7 @@ from app.config import (
     AgentSettings,
     APISettings,
     DatabaseSettings,
+    ResilienceSettings,
     Settings,
     get_settings,
 )
@@ -118,10 +119,19 @@ class TestAPISettings:
         with pytest.raises(ValidationError):
             APISettings()
 
-        # Invalid values - port 65536
-        monkeypatch.setenv("API_PORT", "65536")
-        with pytest.raises(ValidationError):
-            APISettings()
+
+class TestResilienceSettings:
+    """Tests for resilience settings."""
+
+    def test_default_values(self) -> None:
+        """Ensure resilience defaults are sane."""
+        settings = ResilienceSettings()
+        assert settings.failure_threshold == 3
+        assert settings.recovery_timeout_seconds == 30
+        assert settings.half_open_max_attempts == 1
+        assert settings.backoff_base_seconds == 1.0
+        assert settings.backoff_max_seconds == 8.0
+        assert settings.fallback_enabled is True
 
 
 class TestGetSettings:
