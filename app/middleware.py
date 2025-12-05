@@ -12,7 +12,7 @@ This module provides middleware for:
 import time
 import uuid
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,7 +69,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Add request ID to response headers
             response.headers["X-Request-ID"] = request_id
 
-            return response
+            return cast(Response, response)
 
         except Exception as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
@@ -214,8 +214,8 @@ def setup_middleware(app: FastAPI, cors_origins: list[str] | None = None) -> Non
     app.add_middleware(RequestLoggingMiddleware)
 
     # Exception handlers
-    app.add_exception_handler(Text2SQLException, exception_handler)
-    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(Text2SQLException, exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, generic_exception_handler)
 
     logger.info(

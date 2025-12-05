@@ -266,7 +266,7 @@ class InferenceEngine:
 
             # Generate
             with torch.no_grad():
-                outputs = self.model.generate(
+                outputs = self.model.generate(  # type: ignore[operator]
                     **inputs,
                     **config.to_dict(),
                     return_dict_in_generate=True,

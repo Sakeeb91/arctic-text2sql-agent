@@ -853,9 +853,14 @@ class Text2SQLEngine:
         for attempt in range(self._max_retries):
             try:
                 use_examples = attempt > 0  # Add examples on retry
-                result = await self._circuit_breaker.run(
-                    lambda use_examples=use_examples: _run_inference(use_examples)
-                )
+                current_use_examples = use_examples
+
+                async def _task(
+                    use_examples: bool = current_use_examples,
+                ) -> InferenceResult:
+                    return await _run_inference(use_examples)
+
+                result = await self._circuit_breaker.run(_task)
 
                 if best_result is None or result.confidence > best_result.confidence:
                     best_result = result

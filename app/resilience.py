@@ -161,5 +161,5 @@ def compute_backoff_seconds(
     Returns:
         Backoff delay in seconds.
     """
-    delay = base_seconds * (2**attempt)
-    return min(delay, max_seconds)
+    delay = float(base_seconds * (2**attempt))
+    return float(min(delay, max_seconds))

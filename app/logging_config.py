@@ -11,7 +11,7 @@ This module provides production-grade logging with:
 import logging
 import sys
 from contextvars import ContextVar
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -50,7 +50,7 @@ def configure_logging(
         logger.info("Application started", version="1.0.0")
     """
     # Shared processors for all log entries
-    shared_processors: list[structlog.types.Processor] = [
+    shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
@@ -127,7 +127,7 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
         logger.info("Processing query", query="SELECT * FROM users")
         logger.error("Query failed", error="Connection timeout", retry_count=3)
     """
-    return structlog.get_logger(name)
+    return cast(structlog.stdlib.BoundLogger, structlog.get_logger(name))
 
 
 class LogContext:

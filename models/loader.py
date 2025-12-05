@@ -10,7 +10,7 @@ This module provides efficient model loading with:
 
 import gc
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import torch
 from transformers import (
@@ -290,7 +290,9 @@ class ModelLoader:
 
         # Move to device if not using device_map
         if "device_map" not in load_kwargs:
-            model = model.to(device)
+            model = cast(
+                PreTrainedModel, model.to(device)  # type: ignore[arg-type,assignment]
+            )
 
         # Set to evaluation mode
         model.eval()
@@ -328,7 +330,7 @@ class ModelLoader:
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
             with torch.no_grad():
-                _ = self._model.generate(
+                _ = self._model.generate(  # type: ignore[operator]
                     **inputs,
                     max_new_tokens=10,
                     do_sample=False,

@@ -9,7 +9,7 @@ This module provides security headers to protect against common vulnerabilities:
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -80,4 +80,4 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if "X-Powered-By" in response.headers:
             del response.headers["X-Powered-By"]
 
-        return response
+        return cast(Response, response)
