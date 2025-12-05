@@ -69,7 +69,8 @@ class TestQueryEndpoint:
             assert "sql" in data
         else:
             # Should return proper error structure
-            assert "detail" in data
+            assert "error" in data
+            assert "message" in data["error"]
 
     def test_query_endpoint_validates_request(self, test_client: TestClient) -> None:
         """Test query endpoint validates request body."""
