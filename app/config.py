@@ -208,6 +208,45 @@ class LoggingSettings(BaseSettings):
     )
 
 
+class ResilienceSettings(BaseSettings):
+    """Resilience and retry configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+    failure_threshold: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of consecutive failures before opening circuit",
+    )
+    recovery_timeout_seconds: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="Time to wait before attempting half-open trial",
+    )
+    half_open_max_attempts: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Allowed attempts while circuit is half-open",
+    )
+    backoff_base_seconds: float = Field(
+        default=1.0,
+        ge=0.1,
+        description="Initial delay for exponential backoff",
+    )
+    backoff_max_seconds: float = Field(
+        default=8.0,
+        ge=1.0,
+        description="Maximum delay for exponential backoff",
+    )
+    fallback_enabled: bool = Field(
+        default=True,
+        description="Return fallback responses when dependencies fail repeatedly",
+    )
+
+
 class MonitoringSettings(BaseSettings):
     """Monitoring and metrics configuration."""
 
@@ -270,6 +309,7 @@ class Settings(BaseSettings):
     agent: AgentSettings = Field(default_factory=AgentSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    resilience: ResilienceSettings = Field(default_factory=ResilienceSettings)
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
 
@@ -285,3 +325,4 @@ def get_settings() -> Settings:
         Settings: Application settings instance
     """
     return Settings()
+
