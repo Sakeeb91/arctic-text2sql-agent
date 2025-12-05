@@ -896,21 +896,52 @@ class Text2SQLEngine:
                 warnings.append(f"Generation attempt {attempt + 1} failed: {str(e)}")
 
                 if attempt == self._max_retries - 1:
+                    if self._fallback_enabled:
+                        warnings.append("Returning fallback after repeated failures")
+                        return (
+                            self._build_fallback_inference_result("exhausted_retries"),
+                            warnings,
+                        )
+
                     raise ModelInferenceException(
                         message=f"All {self._max_retries} generation attempts failed",
                         details={"last_error": str(e)},
                     ) from e
 
-        # Return best result if we have one
+                delay = compute_backoff_seconds(
+                    attempt, self._backoff_base, self._backoff_max
+                )
+                await asyncio.sleep(delay)
+
         if best_result:
             best_result.metadata["retries"] = self._max_retries - 1
             return best_result, warnings
 
-        # Should not reach here, but handle gracefully
         raise AgentMaxStepsExceededException(
             max_steps=self._max_retries,
             details={"reason": "No successful generation"},
         )
+
+    def _build_fallback_inference_result(self, reason: str) -> Any:
+        """Construct a lightweight fallback inference result."""
+        from models.inference import InferenceResult
+
+        return InferenceResult(
+            generated_text="",
+            sql=None,
+            confidence=0.0,
+            metadata={"fallback": True, "reason": reason},
+        )
+
+    def get_resilience_state(self) -> dict[str, Any]:
+        """Expose current circuit breaker state for health checks."""
+        state = self._circuit_breaker.state
+        return {
+            "state": state.state,
+            "failure_count": state.failure_count,
+            "last_error": state.last_error,
+            "half_open_attempts": state.half_open_attempts,
+        }
 
     async def _execute_sql(
         self,
