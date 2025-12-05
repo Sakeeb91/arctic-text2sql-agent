@@ -371,6 +371,14 @@ pytest tests/unit/test_agent_engine.py
 pytest -v --show-reasoning
 ```
 
+### Dependency Installation with Constraints
+
+To avoid pip resolution issues in CI/local installs:
+
+```bash
+bash scripts/install_with_constraints.sh
+```
+
 ### Code Quality
 
 ```bash
