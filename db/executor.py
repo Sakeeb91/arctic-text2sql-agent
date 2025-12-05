@@ -234,7 +234,7 @@ class SafeQueryExecutor:
 
         try:
             # Execute with timeout
-            result = await asyncio.wait_for(
+            result: QueryResult = await asyncio.wait_for(
                 self._execute_query(sql, params),
                 timeout=timeout,
             )
