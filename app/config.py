@@ -325,4 +325,3 @@ def get_settings() -> Settings:
         Settings: Application settings instance
     """
     return Settings()
-

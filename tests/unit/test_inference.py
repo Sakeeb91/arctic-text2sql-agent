@@ -558,4 +558,3 @@ class TestGetInferenceEngine:
             engine2 = await get_inference_engine(mock_loader)
 
             assert engine1 is engine2
-

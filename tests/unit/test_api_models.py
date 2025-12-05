@@ -19,4 +19,3 @@ def test_error_response_wrapper() -> None:
     resp = ErrorResponse(error=detail)
     assert resp.error.code == "X"
     assert resp.model_dump()["error"]["message"] == "oops"
-

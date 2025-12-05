@@ -162,4 +162,3 @@ def compute_backoff_seconds(
     """
     delay = base_seconds * (2**attempt)
     return min(delay, max_seconds)
-

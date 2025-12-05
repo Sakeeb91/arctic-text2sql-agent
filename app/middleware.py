@@ -160,9 +160,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         detail_payload = {"message": str(exc.detail)}
 
     message = (
-        detail_payload.get("message")
-        or detail_payload.get("error")
-        or str(exc.detail)
+        detail_payload.get("message") or detail_payload.get("error") or str(exc.detail)
     )
 
     payload = ErrorResponse(
@@ -224,4 +222,3 @@ def setup_middleware(app: FastAPI, cors_origins: list[str] | None = None) -> Non
         "middleware_configured",
         cors_origins=cors_origins,
     )
-

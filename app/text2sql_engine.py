@@ -885,7 +885,10 @@ class Text2SQLEngine:
             except CircuitBreakerOpenException:
                 warnings.append("Model inference circuit open")
                 if self._fallback_enabled:
-                    return self._build_fallback_inference_result("circuit_open"), warnings
+                    return (
+                        self._build_fallback_inference_result("circuit_open"),
+                        warnings,
+                    )
                 raise
             except Exception as e:
                 logger.error(

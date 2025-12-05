@@ -16,7 +16,10 @@ class TestComputeBackoffSeconds:
 
     def test_backoff_grows_until_max(self) -> None:
         """Backoff should grow exponentially but cap at max."""
-        delays = [compute_backoff_seconds(i, base_seconds=1.0, max_seconds=5.0) for i in range(5)]
+        delays = [
+            compute_backoff_seconds(i, base_seconds=1.0, max_seconds=5.0)
+            for i in range(5)
+        ]
         assert delays[:3] == [1.0, 2.0, 4.0]
         assert delays[3] == 5.0  # capped
         assert delays[4] == 5.0  # still capped
@@ -64,7 +67,9 @@ class TestCircuitBreaker:
         """Circuit transitions to half-open after recovery timeout."""
         breaker = CircuitBreaker(
             CircuitBreakerConfig(
-                failure_threshold=1, recovery_timeout_seconds=0, half_open_max_attempts=1
+                failure_threshold=1,
+                recovery_timeout_seconds=0,
+                half_open_max_attempts=1,
             )
         )
 
@@ -104,4 +109,3 @@ class TestCircuitBreaker:
         assert result == "ok"
         assert breaker.is_open() is False
         assert breaker.state.failure_count == 0
-

@@ -153,4 +153,3 @@ class TestAPIExceptions:
         assert exc.status_code == 503
         assert exc.error_code == "CIRCUIT_OPEN"
         assert exc.details["retry_after_seconds"] == 15
-

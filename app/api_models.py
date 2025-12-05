@@ -24,4 +24,3 @@ class ErrorResponse(BaseModel):
     """Envelope for error responses."""
 
     error: ErrorDetail
-
