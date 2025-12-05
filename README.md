@@ -601,6 +601,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Documentation
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) - Detailed technical implementation guide
 - [Agent Architecture Comparison](docs/AGENT_ARCHITECTURE_COMPARISON.md) - Pipeline vs Agent analysis
+- [Resilience Guide](docs/RESILIENCE.md) - Error handling, circuit breaker, fallbacks
 - [API Documentation](http://localhost:8000/docs) - Interactive API docs (when server is running)
 
 ### External Resources
