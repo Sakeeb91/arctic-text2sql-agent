@@ -4,4 +4,6 @@
 #
 cryptography>=39.0.0
 numpy<2
+# Pin smolagents to avoid resolution issues
+smolagents>=1.0.0,<2.0.0
 
