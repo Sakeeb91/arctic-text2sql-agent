@@ -6,4 +6,11 @@ cryptography>=39.0.0
 numpy<2
 # Pin smolagents to avoid resolution issues
 smolagents>=1.0.0,<2.0.0
+# Pin coverage to avoid backtracking through versions
+coverage>=7.4.0
+# Pin other common backtracking dependencies
+huggingface_hub>=0.20.0
+transformers>=4.37.0
+fsspec>=2023.5.0
+tokenizers>=0.15.0
 
