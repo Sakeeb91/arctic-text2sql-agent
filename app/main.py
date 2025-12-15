@@ -11,6 +11,7 @@ from fastapi import FastAPI
 
 from app import __version__
 from app.config import get_settings
+from app.error_handlers import setup_exception_handlers
 from app.logging_config import configure_logging, get_logger
 from app.middleware import setup_middleware
 from app.routes import router
@@ -157,6 +158,9 @@ app = FastAPI(
 
 # Setup middleware
 setup_middleware(app, cors_origins=settings.api.cors_origins_list)
+
+# Setup exception handlers (Phase 2.3: Error Handling & Resilience)
+setup_exception_handlers(app)
 
 # Setup rate limiting (Phase 2.2: Security Implementation)
 setup_rate_limiting(app)
