@@ -46,6 +46,9 @@ app/
 ├── text2sql_engine.py   # Core orchestrator (Issue #4)
 ├── middleware.py        # CORS, logging, security headers
 ├── exceptions.py        # Custom exception hierarchy → HTTP status codes
+├── error_handlers.py    # Global exception handlers, error response models (Issue #7)
+├── retry.py             # Tenacity retry decorators and utilities (Issue #7)
+├── resilience.py        # Circuit breaker pattern implementation
 ├── security/            # JWT auth, rate limiting, input validation
 └── agent/               # Agent-based architecture (Issue #18)
     ├── __init__.py      # Module exports
@@ -135,7 +138,10 @@ result = await engine.generate_sql(
 - Schema introspection
 - Model loading with quantization
 - JWT authentication, rate limiting
-- Comprehensive test suite (300+ tests)
+- Global exception handlers with standard error responses (Issue #7)
+- Tenacity retry decorators for resilient operations (Issue #7)
+- Circuit breaker pattern for fault tolerance (Issue #7)
+- Comprehensive test suite (396+ tests)
 
 **API Endpoints**:
 - `POST /api/v1/query` - Generate SQL with optional execution
@@ -202,6 +208,104 @@ GitHub Actions (`.github/workflows/ci.yml`):
 
 **Missing**: Docker push, deployment workflow, automated versioning.
 
+### CI Performance Optimizations
+
+The CI uses **`uv`** instead of `pip` for dependency installation, reducing install time from **1h45m+ to ~30 seconds**.
+
+```yaml
+# In CI workflow - use uv for fast dependency resolution
+- name: Install uv
+  run: pip install uv
+
+- name: Install dependencies
+  run: uv pip install -r requirements.txt
+```
+
+**Why `uv`?**
+- Rust-based pip replacement (10-100x faster)
+- Better dependency resolution algorithm
+- Aggressive caching
+- Quickly identifies dependency conflicts (vs pip hanging for hours)
+
+### CI Troubleshooting
+
+#### 1. Dependency Resolution Issues ("pip resolution-too-deep")
+
+**Symptom**: CI hangs for hours on `pip install -r requirements.txt`
+
+**Root Cause**: Complex ML dependencies (torch, transformers, smolagents) create massive dependency trees that pip's backtracking resolver can't handle efficiently.
+
+**Solution**: Use `uv` instead of pip (already configured in CI):
+```yaml
+- run: |
+    pip install uv
+    uv pip install -r requirements.txt
+```
+
+#### 2. Incompatible Dependencies
+
+**Symptom**: `uv` fails fast with clear error about version conflicts
+
+**Example Error**:
+```
+smolagents>=1.0.0 requires huggingface-hub>=0.28.0
+But requirements.txt has huggingface_hub==0.20.3
+```
+
+**Solution**: Update `requirements.txt` with compatible versions:
+```txt
+# ML & NLP - versions must be compatible with smolagents
+transformers>=4.40.0
+huggingface_hub>=0.31.2
+accelerate>=0.30.0
+smolagents>=1.0.0
+```
+
+#### 3. Docker Build "No space left on device"
+
+**Symptom**: Docker build fails with disk space error
+
+**Root Cause**: GitHub Actions runners have ~14GB free. PyTorch Docker images need ~10GB+.
+
+**Solution**: Add disk cleanup step before Docker build (already configured):
+```yaml
+- name: Free up disk space
+  run: |
+    sudo rm -rf /usr/share/dotnet      # ~2GB
+    sudo rm -rf /usr/local/lib/android # ~10GB
+    sudo rm -rf /opt/ghc               # ~5GB
+    sudo rm -rf /opt/hostedtoolcache/CodeQL  # ~5GB
+    sudo docker image prune --all --force
+```
+
+#### 4. MyPy Type Errors Across Environments
+
+**Symptom**: MyPy passes locally but fails in CI (or vice versa)
+
+**Root Cause**: Different versions of starlette/pydantic have different type stubs.
+
+**Solution**: Add module-specific overrides in `pyproject.toml`:
+```toml
+[[tool.mypy.overrides]]
+module = "app.error_handlers"
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = "app.retry"
+warn_unused_ignores = false
+```
+
+### CI Timing Benchmarks
+
+| Job | Time |
+|-----|------|
+| Security Scan | ~10s |
+| Lint & Format | ~18s |
+| Tests (396 tests) | ~1m 20s |
+| Build Check | ~12s |
+| Docker Build | ~25m |
+| **Total** | **~27m** |
+
 ## Critical Implementation Notes
 
 ### Slowapi Rate Limiting Gotcha
@@ -244,4 +348,5 @@ See GitHub Issues:
 - **#17**: Meta tracker with all issues
 - **#4**: Core Text2SQL Engine ✅ COMPLETED
 - **#18**: smolagents Agent Framework ✅ COMPLETED
+- **#7**: Error Handling & Resilience ✅ COMPLETED
 - **#12**: CI/CD Pipeline (needs deployment workflow)
