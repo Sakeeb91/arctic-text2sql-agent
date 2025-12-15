@@ -245,6 +245,13 @@ class ResilienceSettings(BaseSettings):
         default=True,
         description="Return fallback responses when dependencies fail repeatedly",
     )
+    max_retries: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        alias="RESILIENCE_MAX_RETRIES",
+        description="Maximum number of retry attempts for transient failures",
+    )
 
 
 class MonitoringSettings(BaseSettings):
