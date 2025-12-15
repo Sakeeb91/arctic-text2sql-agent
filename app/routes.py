@@ -7,11 +7,18 @@ This module defines all REST API endpoints for the Arctic Text2SQL Agent.
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from app import __version__
 from app.config import get_settings
+from app.exceptions import (
+    AuthenticationException,
+    ModelInferenceException,
+    QueryNotFoundException,
+    SchemaNotFoundException,
+    ValidationException,
+)
 from app.logging_config import get_logger
 from app.security import limiter, validate_database_id, validate_natural_language_query
 from db.connection import get_database
@@ -186,12 +193,9 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
             errors=query_errors,
             database_id=query_request.database_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Invalid query",
-                "messages": query_errors,
-            },
+        raise ValidationException(
+            message="Invalid natural language query",
+            validation_errors=[{"field": "query", "error": e} for e in query_errors],
         )
 
     # Validate database ID (Phase 2.2: Security Implementation)
@@ -202,9 +206,9 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
             error=db_error,
             database_id=query_request.database_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": db_error},
+        raise ValidationException(
+            message=db_error or "Invalid database ID",
+            validation_errors=[{"field": "database_id", "error": db_error}],
         )
 
     logger.info(
@@ -256,15 +260,21 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
             warnings=result.warnings,
         )
 
+    except ModelInferenceException:
+        # Let custom exception handlers deal with this
+        raise
+    except SchemaNotFoundException:
+        # Let custom exception handlers deal with this
+        raise
     except Exception as e:
         logger.error(
             "generate_sql_error",
             error=str(e),
             database_id=query_request.database_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "SQL generation failed", "message": str(e)},
+        raise ModelInferenceException(
+            message=f"SQL generation failed: {str(e)}",
+            details={"database_id": query_request.database_id},
         ) from e
 
 
@@ -292,9 +302,9 @@ async def validate_sql(
             error=db_error,
             database_id=validation_request.database_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": db_error},
+        raise ValidationException(
+            message=db_error or "Invalid database ID",
+            validation_errors=[{"field": "database_id", "error": db_error}],
         )
 
     logger.info(
@@ -364,9 +374,9 @@ async def get_schema(request: Request, database_id: str) -> SchemaResponse:
             error=db_error,
             database_id=database_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": db_error},
+        raise ValidationException(
+            message=db_error or "Invalid database ID",
+            validation_errors=[{"field": "database_id", "error": db_error}],
         )
 
     logger.info("get_schema_request", database_id=database_id)
@@ -418,9 +428,9 @@ async def register_schema(
             error=db_error,
             database_id=schema_request.database_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": db_error},
+        raise ValidationException(
+            message=db_error or "Invalid database ID",
+            validation_errors=[{"field": "database_id", "error": db_error}],
         )
 
     logger.info(
@@ -485,10 +495,7 @@ async def get_reasoning_trace(
         history = engine.get_query_history(query_id)
 
         if history is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={"error": "Query not found", "query_id": query_id},
-            )
+            raise QueryNotFoundException(query_id=query_id)
 
         # Convert reasoning trace to response model
         reasoning_trace = [
@@ -513,14 +520,12 @@ async def get_reasoning_trace(
             created_at=history.created_at,
         )
 
-    except HTTPException:
+    except QueryNotFoundException:
         raise
     except Exception as e:
         logger.error("get_reasoning_trace_error", error=str(e), query_id=query_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Failed to retrieve reasoning trace", "message": str(e)},
-        ) from e
+        # Let global exception handler deal with unhandled exceptions
+        raise
 
 
 @router.post("/agent/retry", response_model=QueryResponse)
@@ -541,7 +546,6 @@ async def retry_query(request: Request, retry_request: RetryRequest) -> QueryRes
     )
 
     from app.agent import get_agent_engine
-    from app.exceptions import QueryNotFoundException
 
     try:
         engine = await get_agent_engine()
@@ -580,25 +584,17 @@ async def retry_query(request: Request, retry_request: RetryRequest) -> QueryRes
             warnings=result.warnings,
         )
 
-    except QueryNotFoundException as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "Query not found",
-                "message": str(e),
-                "query_id": retry_request.query_id,
-            },
-        ) from e
+    except QueryNotFoundException:
+        # Let custom exception handler deal with this
+        raise
     except Exception as e:
         logger.error(
             "retry_query_error",
             error=str(e),
             query_id=retry_request.query_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Retry failed", "message": str(e)},
-        ) from e
+        # Let global exception handler deal with unhandled exceptions
+        raise
 
 
 # =============================================================================
@@ -656,11 +652,7 @@ async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
         )
 
     logger.warning("authentication_failed", username=credentials.username)
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect username or password",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    raise AuthenticationException(message="Incorrect username or password")
 
 
 # =============================================================================
