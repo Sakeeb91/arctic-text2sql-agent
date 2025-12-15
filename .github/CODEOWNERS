@@ -1,0 +1,28 @@
+# CODEOWNERS - Define code review requirements
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @Sakeeb91
+
+# CI/CD and deployment
+/.github/ @Sakeeb91
+/docker-compose*.yml @Sakeeb91
+/Dockerfile @Sakeeb91
+
+# Core application
+/app/ @Sakeeb91
+/app/agent/ @Sakeeb91
+/app/security/ @Sakeeb91
+
+# Database layer
+/db/ @Sakeeb91
+
+# ML models
+/models/ @Sakeeb91
+
+# Tests
+/tests/ @Sakeeb91
+
+# Configuration
+/pyproject.toml @Sakeeb91
+/requirements.txt @Sakeeb91
