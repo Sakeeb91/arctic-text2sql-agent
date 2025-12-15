@@ -8,6 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
+  UV_SYSTEM_PYTHON: 1
 
 jobs:
   lint:
@@ -22,10 +23,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install black ruff mypy
+        run: uv pip install black ruff mypy
 
       - name: Check formatting with Black
         run: black --check .
@@ -35,7 +37,7 @@ jobs:
 
       - name: Type check with MyPy
         run: |
-          pip install types-PyYAML types-redis pydantic pydantic-settings sqlalchemy
+          uv pip install types-PyYAML types-redis pydantic pydantic-settings sqlalchemy
           mypy app/ db/ models/ --ignore-missing-imports
 
   test:
@@ -51,19 +53,21 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Cache pip dependencies
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -c constraints.txt
-          pip install aiosqlite asyncpg aiomysql  # Async DB drivers
+          uv pip install -r requirements.txt
+          uv pip install aiosqlite asyncpg aiomysql
 
       - name: Run tests with coverage
         run: |
@@ -88,8 +92,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install Bandit
-        run: pip install bandit[toml]
+        run: uv pip install bandit[toml]
 
       - name: Run Bandit security scan
         run: bandit -c pyproject.toml -r app/ db/ models/
@@ -107,17 +114,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install build
+        run: uv pip install build
 
       - name: Build package
         run: python -m build
 
       - name: Check package
         run: |
-          pip install twine
+          uv pip install twine
           twine check dist/*
 
   docker:
@@ -140,6 +148,3 @@ jobs:
           tags: arctic-text2sql:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-
-
