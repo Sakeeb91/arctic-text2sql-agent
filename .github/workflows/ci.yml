@@ -134,6 +134,16 @@ jobs:
     needs: [lint, test]
     if: github.event_name == 'push'
     steps:
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary tools to free up ~30GB
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
       - name: Checkout code
         uses: actions/checkout@v4
 
