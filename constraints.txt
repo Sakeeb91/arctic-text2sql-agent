@@ -1,16 +1,15 @@
 #
-# Pinned lower bounds to avoid pip "resolution-too-deep" errors in CI.
-# Keep in sync with requirements.txt when adjusting core dependencies.
+# Constraints file for dependency resolution.
+# Now using uv which handles resolution efficiently.
+# Keep in sync with requirements.txt.
 #
 cryptography>=39.0.0
 numpy<2
-# Pin smolagents to avoid resolution issues
 smolagents>=1.0.0,<2.0.0
-# Pin coverage to avoid backtracking through versions
 coverage>=7.4.0
-# Pin other common backtracking dependencies
-huggingface_hub>=0.20.0
-transformers>=4.37.0
+huggingface_hub>=0.31.2
+transformers>=4.40.0
+accelerate>=0.30.0
 fsspec>=2023.5.0
 tokenizers>=0.15.0
 
