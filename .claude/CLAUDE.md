@@ -129,14 +129,23 @@ pytest --pdb                               # Debug on failure
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`): Lint → Security → Tests → Build → Docker
+GitHub Actions workflows in `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | Push/PR | Lint → Security → Tests → Build → Docker |
+| `release.yml` | Tag `v*.*.*` | Build, push to GHCR, create GitHub release |
+| `deploy-staging.yml` | Push to `develop` | Deploy to staging environment |
+| `deploy-production.yml` | Release published | Deploy to production (with approval) |
+| `rollback.yml` | Manual | Rollback to previous version |
+| `version-bump.yml` | Manual | Bump version and create tag |
 
 ### CI Notes
 
 - Uses **`uv`** instead of pip (10-100x faster dependency resolution)
 - Set `UV_SYSTEM_PYTHON=1` environment variable for system Python installation
 - Docker build requires disk cleanup step (removes .NET SDK, Android SDK, GHC, CodeQL to free ~30GB)
-- MyPy module overrides in `pyproject.toml` for `app.error_handlers` and `app.retry` to handle environment differences
+- Docker images pushed to GitHub Container Registry (`ghcr.io`)
 
 ### CI Timing
 
@@ -147,6 +156,63 @@ GitHub Actions (`.github/workflows/ci.yml`): Lint → Security → Tests → Bui
 | Tests | ~1m 20s |
 | Build Check | ~12s |
 | Docker Build | ~25m |
+
+## Deployment
+
+### Docker Images
+
+Images are published to GitHub Container Registry:
+
+```bash
+# Pull latest
+docker pull ghcr.io/sakeeb91/arctic-text2sql-agent:latest
+
+# Pull specific version
+docker pull ghcr.io/sakeeb91/arctic-text2sql-agent:1.0.0
+
+# Pull by commit SHA
+docker pull ghcr.io/sakeeb91/arctic-text2sql-agent:sha-abc1234
+```
+
+### Environment Deployment
+
+```bash
+# Staging
+docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+
+# Production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+### Release Process
+
+1. **Version Bump**: Run `version-bump.yml` workflow (patch/minor/major)
+2. **Auto-Release**: Tag push triggers `release.yml` → builds image → creates GitHub release
+3. **Production Deploy**: Release publish triggers `deploy-production.yml` (requires approval)
+
+### Rollback
+
+Use the `rollback.yml` workflow:
+- Select environment (staging/production)
+- Specify target version (e.g., `v1.0.0` or `sha-abc1234`)
+- Provide reason for rollback
+- Production rollbacks require approval
+
+### Required Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `GITHUB_TOKEN` | Auto-provided, used for GHCR push |
+| `DATABASE_URL` | Production database connection |
+| `HUGGINGFACE_TOKEN` | Model download access |
+| `SECRET_KEY` | JWT signing key |
+
+### GitHub Environments
+
+Configure these environments in repository settings:
+- `staging` - Auto-deploy from develop branch
+- `production` - Manual approval required
+- `production-approval` - Approval gate for production deploys
 
 ## Critical Implementation Notes
 
