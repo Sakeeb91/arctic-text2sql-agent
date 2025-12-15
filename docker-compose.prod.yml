@@ -1,0 +1,103 @@
+# Arctic Text2SQL Agent - Production Environment Override
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file overrides the base docker-compose.yml for production deployments.
+
+services:
+  api:
+    image: ghcr.io/sakeeb91/arctic-text2sql-agent:${IMAGE_TAG:-latest}
+    build: !reset null
+    environment:
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      # HuggingFace
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - TEXT2SQL_MODEL=${TEXT2SQL_MODEL:-Snowflake/Arctic-Text2SQL-R1-7B}
+      - MODEL_DEVICE=${MODEL_DEVICE:-cuda}
+      # API - Production settings
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_DEBUG=false
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      # Agent
+      - AGENT_MAX_STEPS=${AGENT_MAX_STEPS:-5}
+      - AGENT_MIN_CONFIDENCE=${AGENT_MIN_CONFIDENCE:-0.8}
+      - AGENT_VERBOSITY=0
+      # Logging
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      # Cache
+      - REDIS_URL=redis://redis:6379/0
+      # Security
+      - SECRET_KEY=${SECRET_KEY}
+      # Rate Limiting
+      - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+    volumes:
+      # Production: no source mounts, only data volumes
+      - app-data:/app/data
+      - huggingface-cache:/home/appuser/.cache/huggingface
+    deploy:
+      mode: replicated
+      replicas: ${REPLICAS:-2}
+      resources:
+        limits:
+          memory: 32G
+        reservations:
+          memory: 16G
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    labels:
+      - "environment=production"
+      - "version=${IMAGE_TAG:-latest}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  db:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-text2sql_prod}
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    labels:
+      - "environment=production"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    labels:
+      - "environment=production"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
