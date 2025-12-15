@@ -139,6 +139,14 @@ module = "db.executor"
 warn_unused_ignores = false
 disallow_untyped_decorators = false
 
+[[tool.mypy.overrides]]
+module = "app.error_handlers"
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = "app.retry"
+warn_unused_ignores = false
+
 # Pytest configuration
 [tool.pytest.ini_options]
 testpaths = ["tests"]

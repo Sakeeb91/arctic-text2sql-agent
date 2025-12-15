@@ -8,7 +8,7 @@ external service calls.
 
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from tenacity import (
     retry,
@@ -57,14 +57,17 @@ def retry_database_operation(
     settings = get_settings()
     attempts = max_attempts or settings.resilience.max_retries
 
-    return retry(
-        stop=stop_after_attempt(attempts),
-        wait=wait_exponential(multiplier=1, min=min_wait, max=max_wait),
-        retry=retry_if_exception_type(
-            (DatabaseConnectionException, QueryTimeoutException)
+    return cast(
+        Callable[[Callable[..., T]], Callable[..., T]],
+        retry(
+            stop=stop_after_attempt(attempts),
+            wait=wait_exponential(multiplier=1, min=min_wait, max=max_wait),
+            retry=retry_if_exception_type(
+                (DatabaseConnectionException, QueryTimeoutException)
+            ),
+            before_sleep=_log_retry_attempt,
+            reraise=True,
         ),
-        before_sleep=_log_retry_attempt,
-        reraise=True,
     )
 
 
@@ -90,12 +93,15 @@ def retry_model_inference(
     settings = get_settings()
     attempts = max_attempts or settings.resilience.max_retries
 
-    return retry(
-        stop=stop_after_attempt(attempts),
-        wait=wait_exponential(multiplier=2, min=min_wait, max=max_wait),
-        retry=retry_if_exception_type(ModelInferenceException),
-        before_sleep=_log_retry_attempt,
-        reraise=True,
+    return cast(
+        Callable[[Callable[..., T]], Callable[..., T]],
+        retry(
+            stop=stop_after_attempt(attempts),
+            wait=wait_exponential(multiplier=2, min=min_wait, max=max_wait),
+            retry=retry_if_exception_type(ModelInferenceException),
+            before_sleep=_log_retry_attempt,
+            reraise=True,
+        ),
     )
 
 
@@ -120,12 +126,17 @@ def retry_query_execution(
     settings = get_settings()
     attempts = max_attempts or settings.resilience.max_retries
 
-    return retry(
-        stop=stop_after_attempt(attempts),
-        wait=wait_exponential(multiplier=1, min=min_wait, max=max_wait),
-        retry=retry_if_exception_type((QueryExecutionException, QueryTimeoutException)),
-        before_sleep=_log_retry_attempt,
-        reraise=True,
+    return cast(
+        Callable[[Callable[..., T]], Callable[..., T]],
+        retry(
+            stop=stop_after_attempt(attempts),
+            wait=wait_exponential(multiplier=1, min=min_wait, max=max_wait),
+            retry=retry_if_exception_type(
+                (QueryExecutionException, QueryTimeoutException)
+            ),
+            before_sleep=_log_retry_attempt,
+            reraise=True,
+        ),
     )
 
 

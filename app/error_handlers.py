@@ -299,19 +299,13 @@ def setup_exception_handlers(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     # Register Text2SQLException handler (catches all subclasses)
-    app.add_exception_handler(
-        Text2SQLException, text2sql_exception_handler  # type: ignore[arg-type]
-    )
+    app.add_exception_handler(Text2SQLException, text2sql_exception_handler)  # type: ignore
 
     # Register validation error handler
-    app.add_exception_handler(
-        RequestValidationError, validation_exception_handler  # type: ignore[arg-type]
-    )
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
 
     # Register HTTP exception handler
-    app.add_exception_handler(
-        StarletteHTTPException, http_exception_handler  # type: ignore[arg-type]
-    )
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore
 
     # Register catch-all handler for unhandled exceptions
     app.add_exception_handler(Exception, unhandled_exception_handler)
