@@ -211,7 +211,7 @@ Row 1: total=5000"""
         """Test validation of query with proper LIMIT."""
         results = """Query returned 1 rows:
 Row 1: name=Alice, total=5000"""
-        question = "Who is the top customer by order total?"
+        question = "Who has the highest order total?"
         sql = "SELECT name, SUM(amount) as total FROM orders GROUP BY name ORDER BY total DESC LIMIT 1"
 
         validation = result_validator(results, question, sql)

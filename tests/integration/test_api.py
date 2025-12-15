@@ -60,17 +60,20 @@ class TestQueryEndpoint:
         )
 
         # The endpoint now uses real engine which needs a database
-        # Without proper db setup, it will return 500 (schema not found)
+        # Without proper db setup, it will return:
+        # - 404: Schema not found (via SchemaNotFoundException)
+        # - 500: Other internal errors
         # With proper setup, it returns 200
         # This tests that the endpoint doesn't crash and returns a valid response
-        assert response.status_code in (200, 500)
+        assert response.status_code in (200, 404, 500)
 
         data = response.json()
         if response.status_code == 200:
             assert "sql" in data
         else:
-            # Should return proper error structure
+            # Should return proper error structure from exception handlers
             assert "error" in data
+            assert "code" in data["error"]
             assert "message" in data["error"]
 
     def test_query_endpoint_validates_request(self, test_client: TestClient) -> None:
