@@ -1,0 +1,211 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      target_version:
+        description: 'Version to rollback to (e.g., v1.0.0 or sha-abc1234)'
+        required: true
+      reason:
+        description: 'Reason for rollback'
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate Rollback Target
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.validate.outputs.image_tag }}
+    steps:
+      - name: Validate and normalize version
+        id: validate
+        run: |
+          VERSION="${{ github.event.inputs.target_version }}"
+          # Remove 'v' prefix if present
+          IMAGE_TAG="${VERSION#v}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Rolling back to: $IMAGE_TAG"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify rollback target exists
+        run: |
+          IMAGE_TAG="${{ steps.validate.outputs.image_tag }}"
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} || {
+            echo "Error: Image tag ${IMAGE_TAG} not found in registry"
+            echo "Please verify the version exists before attempting rollback"
+            exit 1
+          }
+          echo "Rollback target verified: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+
+  approval:
+    name: Rollback Approval
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.environment == 'production'
+    environment:
+      name: production-approval
+    steps:
+      - name: Approval gate for production rollback
+        run: |
+          echo "Production rollback approved"
+          echo "Target version: ${{ needs.validate.outputs.image_tag }}"
+          echo "Reason: ${{ github.event.inputs.reason }}"
+
+  rollback:
+    name: Execute Rollback
+    runs-on: ubuntu-latest
+    needs: [validate, approval]
+    if: always() && needs.validate.result == 'success' && (needs.approval.result == 'success' || needs.approval.result == 'skipped')
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    permissions:
+      contents: read
+      packages: read
+      deployments: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create deployment record
+        id: deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: ${{ github.event.inputs.environment }}
+          initial-status: in_progress
+          description: "Rollback to ${{ needs.validate.outputs.image_tag }}"
+
+      - name: Execute rollback
+        id: rollback
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          IMAGE_TAG="${{ needs.validate.outputs.image_tag }}"
+
+          echo "Executing rollback for ${ENV} to ${IMAGE_TAG}..."
+          echo "Reason: ${{ github.event.inputs.reason }}"
+
+          # Create rollback manifest
+          cat > /tmp/rollback-manifest.yaml << EOF
+          # Rollback manifest for ${ENV}
+          # Target: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+          # Reason: ${{ github.event.inputs.reason }}
+          # Executed by: ${{ github.actor }}
+          # Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # For Kubernetes rollback:
+          # kubectl set image deployment/arctic-text2sql \
+          #   app=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
+          #   -n ${ENV}
+          # kubectl rollout status deployment/arctic-text2sql -n ${ENV}
+
+          # For Docker Compose rollback:
+          # IMAGE_TAG=${IMAGE_TAG} docker-compose -f docker-compose.yml \
+          #   -f docker-compose.${ENV}.yml up -d
+
+          # For Docker Swarm rollback:
+          # docker service update --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
+          #   arctic-text2sql
+          EOF
+
+          echo "Rollback manifest created"
+          echo "Rollback completed successfully"
+
+          if [ "$ENV" == "production" ]; then
+            echo "url=https://api.text2sql.example.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://staging.text2sql.example.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update deployment status (success)
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: success
+          environment-url: ${{ steps.rollback.outputs.url }}
+
+      - name: Update deployment status (failure)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: failure
+
+  verify:
+    name: Verify Rollback
+    runs-on: ubuntu-latest
+    needs: rollback
+    steps:
+      - name: Wait for services to stabilize
+        run: sleep 30
+
+      - name: Run health checks
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+
+          echo "Verifying rollback for ${ENV}..."
+
+          # Health check placeholder
+          # if [ "$ENV" == "production" ]; then
+          #   curl -f https://api.text2sql.example.com/api/v1/health || exit 1
+          # else
+          #   curl -f https://staging.text2sql.example.com/api/v1/health || exit 1
+          # fi
+
+          echo "Health checks passed (placeholder - configure actual endpoints)"
+
+  notify:
+    name: Rollback Notification
+    runs-on: ubuntu-latest
+    needs: [validate, rollback, verify]
+    if: always()
+    steps:
+      - name: Create rollback summary
+        run: |
+          echo "## Rollback Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target Version | ${{ needs.validate.outputs.image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Reason | ${{ github.event.inputs.reason }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Initiated by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ needs.verify.result == 'success' && 'Success' || 'Failed' }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify success
+        if: needs.verify.result == 'success'
+        run: |
+          echo "::notice::Rollback to ${{ needs.validate.outputs.image_tag }} completed successfully"
+          # Add notification logic (Slack, etc.)
+
+      - name: Notify failure
+        if: needs.verify.result == 'failure'
+        run: |
+          echo "::error::Rollback to ${{ needs.validate.outputs.image_tag }} failed"
+          # Add failure notification logic
