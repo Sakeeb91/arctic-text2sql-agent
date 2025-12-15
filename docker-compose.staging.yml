@@ -1,0 +1,58 @@
+# Arctic Text2SQL Agent - Staging Environment Override
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# This file overrides the base docker-compose.yml for staging deployments.
+
+services:
+  api:
+    image: ghcr.io/sakeeb91/arctic-text2sql-agent:${IMAGE_TAG:-latest}
+    build: !reset null
+    environment:
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      # HuggingFace
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - TEXT2SQL_MODEL=${TEXT2SQL_MODEL:-Snowflake/Arctic-Text2SQL-R1-7B}
+      - MODEL_DEVICE=${MODEL_DEVICE:-cuda}
+      # API - Staging settings
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_DEBUG=false
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://staging.text2sql.example.com}
+      # Agent
+      - AGENT_MAX_STEPS=${AGENT_MAX_STEPS:-5}
+      - AGENT_MIN_CONFIDENCE=${AGENT_MIN_CONFIDENCE:-0.7}
+      - AGENT_VERBOSITY=2
+      # Logging
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=json
+      # Cache
+      - REDIS_URL=redis://redis:6379/0
+      # Security
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      # Remove source mounts for staging (use image only)
+      - app-data:/app/data
+      - huggingface-cache:/home/appuser/.cache/huggingface
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+        reservations:
+          memory: 8G
+    labels:
+      - "environment=staging"
+      - "version=${IMAGE_TAG:-latest}"
+
+  db:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-text2sql_staging}
+    labels:
+      - "environment=staging"
+
+  redis:
+    labels:
+      - "environment=staging"
