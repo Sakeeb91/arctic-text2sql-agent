@@ -2,12 +2,15 @@
 FastAPI API route definitions.
 
 This module defines all REST API endpoints for the Arctic Text2SQL Agent.
+
+Issue #8: Added caching and streaming support for performance optimization.
 """
 
 from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import __version__
@@ -750,3 +753,477 @@ async def get_model_info() -> ModelInfoResponse:
             device=settings.huggingface.device,
             quantization=None,
         )
+
+
+# =============================================================================
+# Streaming Endpoints (Issue #8: Performance Optimization)
+# =============================================================================
+
+
+class StreamQueryRequest(BaseModel):
+    """Request model for streaming SQL generation."""
+
+    query: str = Field(
+        ...,
+        min_length=5,
+        max_length=1000,
+        description="Natural language question to convert to SQL",
+    )
+    database_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Registered database identifier",
+    )
+    execute: bool = Field(
+        default=False,
+        description="Execute SQL after generation and stream results",
+    )
+    show_reasoning: bool = Field(
+        default=False,
+        description="Stream agent reasoning steps",
+    )
+    max_rows: int = Field(
+        default=1000,
+        ge=1,
+        le=10000,
+        description="Maximum rows to stream when executing",
+    )
+
+
+@router.post("/query/stream")
+@limiter.limit("10/minute")
+async def stream_sql_generation(
+    request: Request, query_request: StreamQueryRequest
+) -> StreamingResponse:
+    """
+    Stream SQL generation with Server-Sent Events.
+
+    Provides real-time progress updates during:
+    - Model inference
+    - SQL validation
+    - Query execution (if requested)
+    - Result streaming (batched)
+
+    Rate limit: 10 requests per minute per client.
+
+    Issue #8: Performance Optimization - Streaming responses.
+    """
+    # Validate inputs
+    is_valid_query, query_errors = validate_natural_language_query(query_request.query)
+    if not is_valid_query:
+        raise ValidationException(
+            message="Invalid natural language query",
+            validation_errors=[{"field": "query", "error": e} for e in query_errors],
+        )
+
+    is_valid_db, db_error = validate_database_id(query_request.database_id)
+    if not is_valid_db:
+        raise ValidationException(
+            message=db_error or "Invalid database ID",
+            validation_errors=[{"field": "database_id", "error": db_error}],
+        )
+
+    logger.info(
+        "stream_sql_generation_request",
+        database_id=query_request.database_id,
+        execute=query_request.execute,
+        show_reasoning=query_request.show_reasoning,
+    )
+
+    from app.streaming import QueryStreamer, create_sse_response
+
+    streamer = QueryStreamer()
+    event_generator = streamer.stream_query(
+        natural_query=query_request.query,
+        database_id=query_request.database_id,
+        execute=query_request.execute,
+        show_reasoning=query_request.show_reasoning,
+        max_rows=query_request.max_rows,
+    )
+
+    return create_sse_response(event_generator)
+
+
+# =============================================================================
+# Cache Management Endpoints (Issue #8: Performance Optimization)
+# =============================================================================
+
+
+class CacheStatsResponse(BaseModel):
+    """Response model for cache statistics."""
+
+    redis_connected: bool = Field(..., description="Redis connection status")
+    redis_url: str | None = Field(None, description="Redis URL (masked)")
+    in_memory_entries: int = Field(..., description="In-memory cache entries")
+    hits: int = Field(..., description="Cache hits")
+    misses: int = Field(..., description="Cache misses")
+    errors: int = Field(..., description="Cache errors")
+    hit_rate: float = Field(..., description="Cache hit rate")
+
+
+@router.get("/cache/stats", response_model=CacheStatsResponse)
+@limiter.limit("30/minute")
+async def get_cache_stats(request: Request) -> CacheStatsResponse:
+    """
+    Get cache statistics.
+
+    Returns current cache health and performance metrics.
+
+    Rate limit: 30 requests per minute per client.
+
+    Issue #8: Performance Optimization - Cache monitoring.
+    """
+    from app.cache import get_cache_manager
+
+    cache = await get_cache_manager()
+    health = await cache.health_check()
+    stats = cache.get_stats()
+
+    return CacheStatsResponse(
+        redis_connected=health["redis_connected"],
+        redis_url=health.get("redis_url"),
+        in_memory_entries=health["in_memory_entries"],
+        hits=stats.hits,
+        misses=stats.misses,
+        errors=stats.errors,
+        hit_rate=stats.hit_rate,
+    )
+
+
+class CacheInvalidateRequest(BaseModel):
+    """Request model for cache invalidation."""
+
+    namespace: str | None = Field(
+        None,
+        description="Cache namespace to invalidate (query, model, schema). None for all.",
+    )
+    key: str | None = Field(
+        None, description="Specific key to invalidate. None for entire namespace."
+    )
+
+
+class CacheInvalidateResponse(BaseModel):
+    """Response model for cache invalidation."""
+
+    success: bool = Field(..., description="Whether invalidation succeeded")
+    invalidated_count: int = Field(..., description="Number of entries invalidated")
+    message: str = Field(..., description="Result message")
+
+
+@router.post("/cache/invalidate", response_model=CacheInvalidateResponse)
+@limiter.limit("10/minute")
+async def invalidate_cache(
+    request: Request, invalidate_request: CacheInvalidateRequest
+) -> CacheInvalidateResponse:
+    """
+    Invalidate cache entries.
+
+    Allows selective or full cache invalidation for maintenance.
+
+    Rate limit: 10 requests per minute per client.
+
+    Issue #8: Performance Optimization - Cache management.
+    """
+    from app.cache import CacheNamespace, get_cache_manager
+
+    cache = await get_cache_manager()
+
+    try:
+        if invalidate_request.namespace:
+            # Validate namespace
+            try:
+                namespace = CacheNamespace(invalidate_request.namespace)
+            except ValueError as e:
+                raise ValidationException(
+                    message=f"Invalid namespace: {invalidate_request.namespace}",
+                    validation_errors=[
+                        {
+                            "field": "namespace",
+                            "error": f"Must be one of: {[n.value for n in CacheNamespace]}",
+                        }
+                    ],
+                ) from e
+
+            if invalidate_request.key:
+                # Invalidate specific key
+                deleted = await cache.delete(invalidate_request.key, namespace)
+                count = 1 if deleted else 0
+                message = (
+                    f"Invalidated key '{invalidate_request.key}' from {namespace.value}"
+                )
+            else:
+                # Invalidate entire namespace
+                count = await cache.invalidate_namespace(namespace)
+                message = f"Invalidated {count} entries from {namespace.value}"
+        else:
+            # Clear all cache
+            await cache.clear()
+            count = -1  # Unknown count for full clear
+            message = "Cleared all cache entries"
+
+        logger.info(
+            "cache_invalidated",
+            namespace=invalidate_request.namespace,
+            key=invalidate_request.key,
+            count=count,
+        )
+
+        return CacheInvalidateResponse(
+            success=True,
+            invalidated_count=max(0, count),
+            message=message,
+        )
+
+    except ValidationException:
+        raise
+    except Exception as e:
+        logger.error("cache_invalidate_error", error=str(e))
+        return CacheInvalidateResponse(
+            success=False,
+            invalidated_count=0,
+            message=f"Invalidation failed: {str(e)}",
+        )
+
+
+# =============================================================================
+# Performance Monitoring Endpoints (Issue #8: Performance Optimization)
+# =============================================================================
+
+
+class PerformanceResponse(BaseModel):
+    """Response model for performance metrics."""
+
+    timestamp: float = Field(..., description="Snapshot timestamp")
+    memory_rss_mb: float = Field(..., description="Resident memory in MB")
+    memory_vms_mb: float = Field(..., description="Virtual memory in MB")
+    gpu_memory_mb: float = Field(..., description="GPU memory in MB")
+    pool_size: int = Field(..., description="Database pool size")
+    pool_checked_out: int = Field(..., description="Connections checked out")
+    pool_overflow: int = Field(..., description="Overflow connections")
+    cache_hit_rate: float = Field(..., description="Cache hit rate")
+    active_requests: int = Field(..., description="Active requests")
+
+
+@router.get("/performance", response_model=PerformanceResponse)
+@limiter.limit("30/minute")
+async def get_performance_metrics(request: Request) -> PerformanceResponse:
+    """
+    Get current performance metrics.
+
+    Returns memory usage, connection pool status, and cache performance.
+
+    Rate limit: 30 requests per minute per client.
+
+    Issue #8: Performance Optimization - Monitoring.
+    """
+    from app.performance import get_performance_snapshot
+
+    snapshot = await get_performance_snapshot()
+
+    return PerformanceResponse(
+        timestamp=snapshot.timestamp,
+        memory_rss_mb=snapshot.memory_rss_mb,
+        memory_vms_mb=snapshot.memory_vms_mb,
+        gpu_memory_mb=snapshot.gpu_memory_mb,
+        pool_size=snapshot.pool_metrics.pool_size,
+        pool_checked_out=snapshot.pool_metrics.checked_out,
+        pool_overflow=snapshot.pool_metrics.overflow,
+        cache_hit_rate=snapshot.cache_hit_rate,
+        active_requests=snapshot.active_requests,
+    )
+
+
+# =============================================================================
+# Batch Processing Endpoints (Issue #8: Performance Optimization)
+# =============================================================================
+
+
+class BatchQueryRequest(BaseModel):
+    """Request model for batch SQL generation."""
+
+    queries: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="List of natural language queries (max 10)",
+    )
+    database_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Registered database identifier",
+    )
+    parallel: bool = Field(
+        default=True,
+        description="Process queries in parallel for faster execution",
+    )
+    max_concurrent: int = Field(
+        default=4,
+        ge=1,
+        le=10,
+        description="Maximum concurrent queries when parallel=True",
+    )
+
+
+class BatchQueryResult(BaseModel):
+    """Result for a single query in batch."""
+
+    query: str = Field(..., description="Original query")
+    sql: str | None = Field(None, description="Generated SQL")
+    confidence: float = Field(..., description="Confidence score")
+    error: str | None = Field(None, description="Error if failed")
+
+
+class BatchQueryResponse(BaseModel):
+    """Response model for batch SQL generation."""
+
+    results: list[BatchQueryResult] = Field(..., description="Results for each query")
+    total_time_ms: float = Field(..., description="Total processing time")
+    successful: int = Field(..., description="Number of successful queries")
+    failed: int = Field(..., description="Number of failed queries")
+
+
+@router.post("/query/batch", response_model=BatchQueryResponse)
+@limiter.limit("5/minute")
+async def generate_sql_batch(
+    request: Request, batch_request: BatchQueryRequest
+) -> BatchQueryResponse:
+    """
+    Generate SQL for multiple queries in batch.
+
+    Supports parallel processing for improved throughput.
+
+    Rate limit: 5 requests per minute per client.
+
+    Issue #8: Performance Optimization - Batch processing.
+    """
+    import time
+
+    # Validate database ID
+    is_valid_db, db_error = validate_database_id(batch_request.database_id)
+    if not is_valid_db:
+        raise ValidationException(
+            message=db_error or "Invalid database ID",
+            validation_errors=[{"field": "database_id", "error": db_error}],
+        )
+
+    # Validate all queries
+    for i, query in enumerate(batch_request.queries):
+        is_valid, errors = validate_natural_language_query(query)
+        if not is_valid:
+            raise ValidationException(
+                message=f"Invalid query at index {i}",
+                validation_errors=[
+                    {"field": f"queries[{i}]", "error": e} for e in errors
+                ],
+            )
+
+    logger.info(
+        "batch_query_request",
+        database_id=batch_request.database_id,
+        query_count=len(batch_request.queries),
+        parallel=batch_request.parallel,
+    )
+
+    start_time = time.perf_counter()
+    results: list[BatchQueryResult] = []
+
+    try:
+        from app.text2sql_engine import get_text2sql_engine
+
+        engine = await get_text2sql_engine()
+
+        # Generate SQL for each query
+        # Note: True batch processing in the engine would be more efficient
+        # This is a simplified version for the API layer
+        import asyncio
+
+        if batch_request.parallel:
+            # Parallel processing
+            async def process_query(query: str) -> BatchQueryResult:
+                try:
+                    result = await engine.generate_sql(
+                        natural_query=query,
+                        database_id=batch_request.database_id,
+                        execute=False,
+                        show_reasoning=False,
+                    )
+                    return BatchQueryResult(
+                        query=query,
+                        sql=result.sql,
+                        confidence=result.confidence,
+                        error=None,
+                    )
+                except Exception as e:
+                    return BatchQueryResult(
+                        query=query,
+                        sql=None,
+                        confidence=0.0,
+                        error=str(e),
+                    )
+
+            # Use semaphore for concurrency control
+            semaphore = asyncio.Semaphore(batch_request.max_concurrent)
+
+            async def process_with_semaphore(query: str) -> BatchQueryResult:
+                async with semaphore:
+                    return await process_query(query)
+
+            tasks = [process_with_semaphore(q) for q in batch_request.queries]
+            results = await asyncio.gather(*tasks)
+        else:
+            # Sequential processing
+            for query in batch_request.queries:
+                try:
+                    result = await engine.generate_sql(
+                        natural_query=query,
+                        database_id=batch_request.database_id,
+                        execute=False,
+                        show_reasoning=False,
+                    )
+                    results.append(
+                        BatchQueryResult(
+                            query=query,
+                            sql=result.sql,
+                            confidence=result.confidence,
+                            error=None,
+                        )
+                    )
+                except Exception as e:
+                    results.append(
+                        BatchQueryResult(
+                            query=query,
+                            sql=None,
+                            confidence=0.0,
+                            error=str(e),
+                        )
+                    )
+
+        total_time_ms = (time.perf_counter() - start_time) * 1000
+        successful = sum(1 for r in results if r.sql is not None)
+
+        logger.info(
+            "batch_query_complete",
+            query_count=len(batch_request.queries),
+            successful=successful,
+            total_time_ms=round(total_time_ms, 2),
+        )
+
+        return BatchQueryResponse(
+            results=list(results),
+            total_time_ms=total_time_ms,
+            successful=successful,
+            failed=len(results) - successful,
+        )
+
+    except Exception as e:
+        logger.error(
+            "batch_query_error",
+            error=str(e),
+            database_id=batch_request.database_id,
+        )
+        raise ModelInferenceException(
+            message=f"Batch query failed: {str(e)}",
+            details={"database_id": batch_request.database_id},
+        ) from e
