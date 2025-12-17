@@ -352,18 +352,20 @@ class InferenceEngine:
         prompts: list[str],
         config: GenerationConfig | None = None,
         extract_sql: bool = True,
+        parallel: bool = False,
+        max_concurrent: int = 4,
     ) -> list[InferenceResult]:
         """
         Generate text from multiple prompts in batch.
 
-        This method processes prompts sequentially but provides a
-        convenient interface for batch processing. For true parallel
-        processing, use async gather with generate().
+        Issue #8: Enhanced with true parallel processing option.
 
         Args:
             prompts: List of input prompts
             config: Generation configuration (uses default if None)
             extract_sql: Whether to extract SQL from outputs
+            parallel: If True, process prompts concurrently using asyncio.gather
+            max_concurrent: Maximum concurrent requests when parallel=True
 
         Returns:
             List of InferenceResult for each prompt
@@ -372,19 +374,52 @@ class InferenceEngine:
             TokenLimitExceededException: If any input too long
             ModelInferenceException: If generation fails
         """
+
         logger.info(
             "batch_inference_starting",
             batch_size=len(prompts),
+            parallel=parallel,
+            max_concurrent=max_concurrent if parallel else 1,
         )
 
+        start_time = time.perf_counter()
+
+        if parallel:
+            # True parallel processing using asyncio with semaphore for rate limiting
+            results = await self._generate_parallel(
+                prompts, config, extract_sql, max_concurrent
+            )
+        else:
+            # Sequential processing
+            results = await self._generate_sequential(prompts, config, extract_sql)
+
+        total_time_ms = (time.perf_counter() - start_time) * 1000
+        successful = sum(1 for r in results if r.sql is not None)
+
+        logger.info(
+            "batch_inference_complete",
+            batch_size=len(prompts),
+            successful=successful,
+            total_time_ms=round(total_time_ms, 2),
+            avg_time_ms=round(total_time_ms / len(prompts), 2) if prompts else 0,
+            parallel=parallel,
+        )
+
+        return results
+
+    async def _generate_sequential(
+        self,
+        prompts: list[str],
+        config: GenerationConfig | None,
+        extract_sql: bool,
+    ) -> list[InferenceResult]:
+        """Sequential batch processing."""
         results: list[InferenceResult] = []
-        total_time_ms = 0.0
 
         for i, prompt in enumerate(prompts):
             try:
                 result = await self.generate(prompt, config, extract_sql)
                 results.append(result)
-                total_time_ms += result.inference_time_ms
 
                 logger.debug(
                     "batch_item_complete",
@@ -398,7 +433,6 @@ class InferenceEngine:
                     item_index=i,
                     error=str(e),
                 )
-                # Add failed result with error metadata
                 results.append(
                     InferenceResult(
                         generated_text="",
@@ -408,15 +442,59 @@ class InferenceEngine:
                     )
                 )
 
-        logger.info(
-            "batch_inference_complete",
-            batch_size=len(prompts),
-            successful=sum(1 for r in results if r.sql is not None),
-            total_time_ms=round(total_time_ms, 2),
-            avg_time_ms=round(total_time_ms / len(prompts), 2) if prompts else 0,
-        )
-
         return results
+
+    async def _generate_parallel(
+        self,
+        prompts: list[str],
+        config: GenerationConfig | None,
+        extract_sql: bool,
+        max_concurrent: int,
+    ) -> list[InferenceResult]:
+        """
+        Parallel batch processing using asyncio.gather with semaphore.
+
+        Issue #8: Performance Optimization - True parallel batch processing.
+        """
+        import asyncio
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def process_with_semaphore(
+            index: int, prompt: str
+        ) -> tuple[int, InferenceResult]:
+            async with semaphore:
+                try:
+                    result = await self.generate(prompt, config, extract_sql)
+                    logger.debug(
+                        "parallel_batch_item_complete",
+                        item_index=index,
+                        inference_time_ms=round(result.inference_time_ms, 2),
+                    )
+                    return index, result
+                except Exception as e:
+                    logger.error(
+                        "parallel_batch_item_failed",
+                        item_index=index,
+                        error=str(e),
+                    )
+                    return index, InferenceResult(
+                        generated_text="",
+                        sql=None,
+                        confidence=0.0,
+                        metadata={"error": str(e), "item_index": index},
+                    )
+
+        # Create tasks for all prompts
+        tasks = [process_with_semaphore(i, prompt) for i, prompt in enumerate(prompts)]
+
+        # Execute all tasks concurrently
+        results_with_index = await asyncio.gather(*tasks)
+
+        # Sort results by original index to maintain order
+        sorted_results = sorted(results_with_index, key=lambda x: x[0])
+
+        return [result for _, result in sorted_results]
 
 
 # Global inference engine
