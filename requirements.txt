@@ -1,20 +1,23 @@
-# Core Dependencies
+# Arctic Text2SQL Agent - Full Requirements
+#
+# For optimized Docker builds, use the split requirements:
+#   - requirements-base.txt (API, database, utilities)
+#   - requirements-ml.txt (PyTorch, transformers)
+#   - requirements-dev.txt (testing, linting)
+#
+# Full installation: pip install -r requirements.txt
+# Production only: pip install -r requirements-base.txt -r requirements-ml.txt
+
+# ============================================================================
+# Base Dependencies (API, Database, Utilities)
+# ============================================================================
+
+# Core API Framework
 fastapi==0.109.2
 uvicorn[standard]==0.27.1
 pydantic==2.6.1
 pydantic-settings==2.1.0
 sse-starlette>=2.0.0  # Server-Sent Events for streaming (Issue #8)
-
-# ML & NLP
-transformers>=4.40.0
-torch>=2.2.0
-accelerate>=0.30.0
-huggingface_hub>=0.31.2
-bitsandbytes>=0.42.0
-numpy<2  # Required for torch compatibility
-
-# Agent Framework (Issue #18: smolagents integration)
-smolagents>=1.0.0
 
 # Database
 sqlalchemy==2.0.27
@@ -45,6 +48,30 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 slowapi==0.1.9
 
+# ============================================================================
+# ML Dependencies (Large packages - ~2GB total)
+# ============================================================================
+
+# Core ML
+numpy<2  # Required for torch compatibility
+
+# PyTorch - NOTE: ~1.8GB download
+# For CPU-only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.2.0
+
+# HuggingFace Ecosystem
+transformers>=4.40.0
+accelerate>=0.30.0
+huggingface_hub>=0.31.2
+bitsandbytes>=0.42.0
+
+# Agent Framework (Issue #18: smolagents integration)
+smolagents>=1.0.0
+
+# ============================================================================
+# Development Dependencies (Not needed in production)
+# ============================================================================
+
 # Testing
 pytest==7.4.4
 pytest-asyncio==0.23.4
@@ -52,7 +79,7 @@ pytest-cov==4.1.0
 httpx==0.26.0
 fakeredis>=2.21.0  # Redis mocking for tests (Issue #8)
 
-# Development
+# Code Quality
 black==24.1.1
 ruff==0.2.1
 mypy==1.8.0
