@@ -393,7 +393,7 @@ async def get_performance_snapshot() -> PerformanceSnapshot:
         cache = await get_cache_manager()
         stats = cache.get_stats()
         cache_hit_rate = stats.hit_rate
-    except Exception:
+    except Exception:  # nosec B110 - Cache is optional, non-critical for snapshot
         pass
 
     return PerformanceSnapshot(

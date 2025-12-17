@@ -526,7 +526,7 @@ class CacheManager:
             try:
                 info = await self._redis.info("memory")
                 status["redis_memory_used"] = info.get("used_memory_human", "unknown")
-            except Exception:
+            except Exception:  # nosec B110 - Optional Redis info, non-critical
                 pass
 
         return status
