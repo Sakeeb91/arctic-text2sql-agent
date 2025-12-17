@@ -1,0 +1,19 @@
+# Development Dependencies - Not needed in production image
+# Install with: pip install -r requirements-dev.txt
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.4
+pytest-cov==4.1.0
+httpx==0.26.0
+fakeredis>=2.21.0
+
+# Code Quality
+black==24.1.1
+ruff==0.2.1
+mypy==1.8.0
+pre-commit==3.6.0
+
+# Type Stubs
+types-PyYAML
+types-redis

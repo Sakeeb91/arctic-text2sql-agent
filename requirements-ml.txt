@@ -1,0 +1,21 @@
+# ML Dependencies - Large packages, cached separately
+# These rarely change and take longest to download
+
+# NOTE: For CPU-only deployments, install with:
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+# This reduces PyTorch from ~1.8GB to ~150MB
+
+# Core ML
+numpy<2  # Required for torch compatibility
+
+# PyTorch (largest dependency)
+torch>=2.2.0
+
+# HuggingFace Ecosystem
+transformers>=4.40.0
+accelerate>=0.30.0
+huggingface_hub>=0.31.2
+bitsandbytes>=0.42.0
+
+# Agent Framework
+smolagents>=1.0.0
