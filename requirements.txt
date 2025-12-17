@@ -3,6 +3,7 @@ fastapi==0.109.2
 uvicorn[standard]==0.27.1
 pydantic==2.6.1
 pydantic-settings==2.1.0
+sse-starlette>=2.0.0  # Server-Sent Events for streaming (Issue #8)
 
 # ML & NLP
 transformers>=4.40.0
@@ -30,6 +31,10 @@ python-dotenv==1.0.1
 tenacity==8.2.3
 pyyaml==6.0.1
 
+# Caching (Issue #8: Performance Optimization)
+redis>=5.0.0
+hiredis>=2.3.0  # C parser for better Redis performance
+
 # Monitoring & Logging
 prometheus-client==0.19.0
 structlog==24.1.0
@@ -45,6 +50,7 @@ pytest==7.4.4
 pytest-asyncio==0.23.4
 pytest-cov==4.1.0
 httpx==0.26.0
+fakeredis>=2.21.0  # Redis mocking for tests (Issue #8)
 
 # Development
 black==24.1.1
