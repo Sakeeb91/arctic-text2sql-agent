@@ -21,7 +21,7 @@
 # =============================================================================
 # Stage 1: Builder - Install dependencies with optimal caching
 # =============================================================================
-FROM python:3.10-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Build arguments
 ARG TORCH_CPU=false
@@ -76,7 +76,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # =============================================================================
 # Stage 2: Production - Minimal runtime image
 # =============================================================================
-FROM python:3.10-slim AS production
+FROM python:3.14-slim AS production
 
 # Environment for runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
