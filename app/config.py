@@ -274,7 +274,7 @@ class MonitoringSettings(BaseSettings):
 
 
 class CacheSettings(BaseSettings):
-    """Cache configuration."""
+    """Cache configuration (Issue #8: Performance Optimization)."""
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -287,7 +287,37 @@ class CacheSettings(BaseSettings):
         default=3600,
         alias="CACHE_TTL",
         ge=0,
-        description="Cache TTL in seconds",
+        description="Default cache TTL in seconds",
+    )
+    query_ttl: int = Field(
+        default=3600,
+        alias="CACHE_QUERY_TTL",
+        ge=0,
+        description="Cache TTL for query results in seconds",
+    )
+    model_ttl: int = Field(
+        default=7200,
+        alias="CACHE_MODEL_TTL",
+        ge=0,
+        description="Cache TTL for model outputs in seconds",
+    )
+    schema_ttl: int = Field(
+        default=86400,
+        alias="CACHE_SCHEMA_TTL",
+        ge=0,
+        description="Cache TTL for schema data in seconds",
+    )
+    enabled: bool = Field(
+        default=True,
+        alias="CACHE_ENABLED",
+        description="Enable/disable caching globally",
+    )
+    max_memory_entries: int = Field(
+        default=1000,
+        alias="CACHE_MAX_MEMORY_ENTRIES",
+        ge=100,
+        le=10000,
+        description="Maximum in-memory cache entries when Redis unavailable",
     )
 
 
