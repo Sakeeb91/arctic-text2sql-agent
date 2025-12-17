@@ -149,13 +149,51 @@ GitHub Actions workflows in `.github/workflows/`:
 
 ### CI Timing
 
-| Job | Time |
-|-----|------|
-| Security Scan | ~10s |
-| Lint & Format | ~18s |
-| Tests | ~1m 20s |
-| Build Check | ~12s |
-| Docker Build | ~25m |
+| Job | Time (Cold) | Time (Cached) |
+|-----|-------------|---------------|
+| Security Scan | ~10s | ~10s |
+| Lint & Format | ~18s | ~18s |
+| Tests | ~1m 20s | ~1m 20s |
+| Build Check | ~12s | ~12s |
+| Docker Build | ~17m | ~3-5m |
+
+### Docker Build Optimization
+
+The Docker build has been optimized to reduce build times from ~25min to ~3-5min (cached):
+
+**Split Requirements Files:**
+- `requirements-base.txt` - API, database, utilities (rarely change)
+- `requirements-ml.txt` - PyTorch, transformers (~2GB, rarely change)
+- `requirements-dev.txt` - Testing, linting (excluded from production)
+
+**Build Optimizations:**
+- **uv package manager**: 10-100x faster than pip for dependency resolution
+- **BuildKit cache mounts**: Persist pip/uv cache across builds
+- **Layer caching**: Dependencies split into separate layers for optimal caching
+- **GitHub Actions cache**: `cache-from: type=gha` for CI layer caching
+
+**Build Options:**
+```bash
+# Default (with CUDA support) - ~1.8GB PyTorch
+docker build -t arctic-text2sql .
+
+# CPU-only (~150MB PyTorch) - saves ~1.5GB
+docker build --build-arg TORCH_CPU=true -t arctic-text2sql .
+
+# Use production target
+docker build --target production -t arctic-text2sql .
+
+# Use development target (includes test tools)
+docker build --target development -t arctic-text2sql .
+```
+
+**Build Time Breakdown:**
+| Layer | First Build | Cached |
+|-------|-------------|--------|
+| Base dependencies | ~2-3m | <10s |
+| ML dependencies | ~8-12m | <10s |
+| Async drivers | ~30s | <10s |
+| App code | ~10s | ~10s |
 
 ## Deployment
 
