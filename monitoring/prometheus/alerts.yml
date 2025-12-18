@@ -1,0 +1,182 @@
+groups:
+  - name: arctic-text2sql-availability
+    rules:
+      - alert: ServiceDown
+        expr: up{job="arctic-text2sql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Arctic Text2SQL service is down"
+          description: "The Arctic Text2SQL service has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(arctic_text2sql_errors_total[5m])) /
+          sum(rate(arctic_text2sql_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% for the last 5 minutes. Current: {{ $value | printf \"%.2f\" }}%"
+
+      - alert: CriticalErrorRate
+        expr: |
+          sum(rate(arctic_text2sql_errors_total[5m])) /
+          sum(rate(arctic_text2sql_http_requests_total[5m])) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is above 10% for the last 2 minutes. Current: {{ $value | printf \"%.2f\" }}%"
+
+  - name: arctic-text2sql-latency
+    rules:
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95, sum(rate(arctic_text2sql_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 latency detected"
+          description: "P95 latency is above 2 seconds. Current: {{ $value | printf \"%.2f\" }}s"
+
+      - alert: HighP99Latency
+        expr: |
+          histogram_quantile(0.99, sum(rate(arctic_text2sql_http_request_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P99 latency detected"
+          description: "P99 latency is above 5 seconds. Current: {{ $value | printf \"%.2f\" }}s"
+
+      - alert: ModelInferenceSlowdown
+        expr: |
+          histogram_quantile(0.95, sum(rate(arctic_text2sql_model_inference_duration_seconds_bucket[5m])) by (le)) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model inference is slow"
+          description: "P95 model inference latency is above 30 seconds. Current: {{ $value | printf \"%.2f\" }}s"
+
+  - name: arctic-text2sql-database
+    rules:
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          arctic_text2sql_db_pool_checked_out / arctic_text2sql_db_pool_size > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "More than 90% of database connections are in use."
+
+      - alert: DatabaseQueryErrors
+        expr: |
+          sum(rate(arctic_text2sql_sql_queries_total{status="error"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database query errors detected"
+          description: "Database query error rate is elevated."
+
+      - alert: HighDatabaseLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(arctic_text2sql_sql_query_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query latency"
+          description: "P95 database query latency is above 1 second."
+
+  - name: arctic-text2sql-cache
+    rules:
+      - alert: LowCacheHitRate
+        expr: |
+          sum(arctic_text2sql_cache_hits_total) /
+          (sum(arctic_text2sql_cache_hits_total) + sum(arctic_text2sql_cache_misses_total)) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is below 50% for the last 15 minutes."
+
+      - alert: RedisDisconnected
+        expr: arctic_text2sql_cache_redis_connected == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis cache disconnected"
+          description: "Redis cache has been disconnected for more than 2 minutes."
+
+      - alert: HighCacheErrorRate
+        expr: |
+          sum(rate(arctic_text2sql_cache_errors_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High cache error rate"
+          description: "Cache error rate is elevated."
+
+  - name: arctic-text2sql-model
+    rules:
+      - alert: ModelNotLoaded
+        expr: arctic_text2sql_model_loaded == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model not loaded"
+          description: "The ML model is not loaded for more than 5 minutes."
+
+      - alert: LowModelConfidence
+        expr: |
+          histogram_quantile(0.50, sum(rate(arctic_text2sql_model_confidence_score_bucket[5m])) by (le)) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low model confidence scores"
+          description: "Median model confidence score is below 50%."
+
+      - alert: HighSelfCorrectionRate
+        expr: |
+          sum(rate(arctic_text2sql_self_correction_attempts_total[5m])) /
+          sum(rate(arctic_text2sql_model_inferences_total[5m])) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High self-correction rate"
+          description: "More than 30% of inferences require self-correction."
+
+  - name: arctic-text2sql-circuit-breaker
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: arctic_text2sql_circuit_breaker_state == 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker is open"
+          description: "Circuit breaker {{ $labels.circuit_name }} is open, blocking requests."
+
+      - alert: CircuitBreakerTripping
+        expr: |
+          sum(rate(arctic_text2sql_circuit_breaker_trips_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker tripping frequently"
+          description: "Circuit breaker is tripping frequently, indicating upstream issues."
