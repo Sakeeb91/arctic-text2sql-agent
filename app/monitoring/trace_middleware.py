@@ -6,7 +6,7 @@ across HTTP requests and integrating with OpenTelemetry.
 """
 
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -15,8 +15,8 @@ from starlette.types import ASGIApp
 from app.logging_config import request_id_context
 from app.monitoring.tracing import (
     get_tracing_manager,
-    trace_id_context,
     span_id_context,
+    trace_id_context,
 )
 
 

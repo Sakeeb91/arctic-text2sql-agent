@@ -5,8 +5,9 @@ This module provides FastAPI middleware for automatically collecting
 HTTP request metrics without modifying individual endpoints.
 """
 
+import contextlib
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -91,10 +92,8 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         # Get request size
         request_size = 0
         if "content-length" in request.headers:
-            try:
+            with contextlib.suppress(ValueError):
                 request_size = int(request.headers["content-length"])
-            except ValueError:
-                pass
 
         # Record start time
         start_time = time.perf_counter()
@@ -109,10 +108,8 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             # Get response size
             response_size = 0
             if "content-length" in response.headers:
-                try:
+                with contextlib.suppress(ValueError):
                     response_size = int(response.headers["content-length"])
-                except ValueError:
-                    pass
 
             # Record metrics
             self.metrics.record_request(

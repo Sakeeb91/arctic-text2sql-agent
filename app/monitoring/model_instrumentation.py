@@ -7,8 +7,9 @@ to collect traces and metrics.
 
 import functools
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 from app.monitoring.metrics import get_metrics_registry
 from app.monitoring.tracing import get_tracing_manager

@@ -8,6 +8,10 @@ health check queries.
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 
+from app.monitoring.dependencies import (
+    check_all_dependencies,
+    get_dependency_status_summary,
+)
 from app.monitoring.health import (
     ServiceHealth,
     check_health,
@@ -15,11 +19,6 @@ from app.monitoring.health import (
     check_readiness,
 )
 from app.monitoring.metrics import get_metrics_registry
-from app.monitoring.dependencies import (
-    check_all_dependencies,
-    get_dependency_status_summary,
-)
-
 
 # Create router for monitoring endpoints
 monitoring_router = APIRouter(prefix="/monitoring", tags=["Monitoring"])

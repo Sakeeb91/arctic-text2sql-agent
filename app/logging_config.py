@@ -56,7 +56,7 @@ def add_trace_context(
     except ImportError:
         # Monitoring module not available, try context vars
         try:
-            from app.monitoring.tracing import trace_id_context, span_id_context
+            from app.monitoring.tracing import span_id_context, trace_id_context
 
             trace_id = trace_id_context.get()
             span_id = span_id_context.get()

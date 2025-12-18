@@ -4,8 +4,8 @@ Unit tests for monitoring module (Issue #9).
 Tests cover metrics collection, health checks, and tracing functionality.
 """
 
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestMetricsRegistry:
@@ -171,7 +171,7 @@ class TestTracingManager:
 
     def test_create_span_returns_noop_when_disabled(self):
         """Test that create_span returns NoOpSpan when disabled."""
-        from app.monitoring.tracing import TracingManager, NoOpSpan
+        from app.monitoring.tracing import NoOpSpan, TracingManager
 
         manager = TracingManager()
 
@@ -260,7 +260,7 @@ class TestHealthChecker:
     @pytest.mark.asyncio
     async def test_service_health_to_dict(self):
         """Test ServiceHealth to_dict method."""
-        from app.monitoring.health import ServiceHealth, ComponentHealth, HealthStatus
+        from app.monitoring.health import ComponentHealth, HealthStatus, ServiceHealth
 
         health = ServiceHealth(
             status=HealthStatus.HEALTHY,
@@ -357,8 +357,9 @@ class TestLoggingWithTracing:
 
     def test_add_trace_context_without_tracing(self):
         """Test add_trace_context when tracing is not available."""
-        from app.logging_config import add_trace_context
         import logging
+
+        from app.logging_config import add_trace_context
 
         logger = logging.getLogger("test")
         event_dict = {"event": "test"}
@@ -370,8 +371,9 @@ class TestLoggingWithTracing:
 
     def test_add_service_context(self):
         """Test add_service_context processor."""
-        from app.logging_config import add_service_context
         import logging
+
+        from app.logging_config import add_service_context
 
         logger = logging.getLogger("test")
         event_dict = {"event": "test"}
@@ -383,8 +385,9 @@ class TestLoggingWithTracing:
 
     def test_add_request_id(self):
         """Test add_request_id processor."""
-        from app.logging_config import add_request_id, request_id_context
         import logging
+
+        from app.logging_config import add_request_id, request_id_context
 
         # Set request ID
         token = request_id_context.set("test-request-123")

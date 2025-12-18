@@ -9,14 +9,13 @@ from functools import lru_cache
 from typing import Any
 
 from prometheus_client import (
+    CONTENT_TYPE_LATEST,
     CollectorRegistry,
     Counter,
     Gauge,
     Histogram,
     Info,
     generate_latest,
-    multiprocess,
-    CONTENT_TYPE_LATEST,
 )
 
 from app.config import get_settings

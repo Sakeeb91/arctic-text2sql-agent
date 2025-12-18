@@ -6,7 +6,6 @@ like databases, Redis, and external APIs.
 """
 
 import asyncio
-import socket
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -163,8 +162,8 @@ async def check_database_connection(
     """
     start = time.perf_counter()
     try:
-        from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
 
         # Convert URL for async driver
         if url.startswith("postgresql://"):
@@ -220,8 +219,6 @@ async def check_otlp_collector(
     Returns:
         DependencyCheck result
     """
-    start = time.perf_counter()
-
     # Parse endpoint to get host and port
     endpoint = endpoint.replace("http://", "").replace("https://", "")
     if ":" in endpoint:

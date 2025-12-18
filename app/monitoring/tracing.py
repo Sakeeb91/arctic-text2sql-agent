@@ -45,16 +45,16 @@ class TracingManager:
 
         try:
             from opentelemetry import trace
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor
-            from opentelemetry.sdk.resources import (
-                Resource,
-                SERVICE_NAME,
-                SERVICE_VERSION,
-            )
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                 OTLPSpanExporter,
             )
+            from opentelemetry.sdk.resources import (
+                SERVICE_NAME,
+                SERVICE_VERSION,
+                Resource,
+            )
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
             from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 
             # Create resource with service info
@@ -300,8 +300,8 @@ def trace_function(
         def another_function():
             ...
     """
-    import functools
     import asyncio
+    import functools
 
     def decorator(func):
         span_name = name or func.__qualname__

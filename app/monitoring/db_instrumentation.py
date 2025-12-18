@@ -81,12 +81,12 @@ class DatabaseInstrumentor:
 
     def _before_cursor_execute(
         self,
-        conn: Any,
+        _conn: Any,
         cursor: Any,
         statement: str,
-        parameters: Any,
+        _parameters: Any,
         context: Any,
-        executemany: bool,
+        _executemany: bool,
     ) -> None:
         """
         Event handler called before cursor execution.
@@ -126,12 +126,12 @@ class DatabaseInstrumentor:
 
     def _after_cursor_execute(
         self,
-        conn: Any,
+        _conn: Any,
         cursor: Any,
         statement: str,
-        parameters: Any,
+        _parameters: Any,
         context: Any,
-        executemany: bool,
+        _executemany: bool,
     ) -> None:
         """
         Event handler called after cursor execution.
@@ -200,7 +200,7 @@ class DatabaseInstrumentor:
             self.tracing.record_exception(original_exception)
 
     def _on_checkout(
-        self, dbapi_conn: Any, connection_record: Any, connection_proxy: Any
+        self, _dbapi_conn: Any, _connection_record: Any, _connection_proxy: Any
     ) -> None:
         """
         Event handler for connection checkout.
@@ -216,7 +216,7 @@ class DatabaseInstrumentor:
             attributes={"db.database_id": self.database_id},
         )
 
-    def _on_checkin(self, dbapi_conn: Any, connection_record: Any) -> None:
+    def _on_checkin(self, _dbapi_conn: Any, _connection_record: Any) -> None:
         """
         Event handler for connection checkin.
 

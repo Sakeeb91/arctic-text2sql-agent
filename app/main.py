@@ -14,19 +14,19 @@ from app.config import get_settings
 from app.error_handlers import setup_exception_handlers
 from app.logging_config import configure_logging, get_logger
 from app.middleware import setup_middleware
+
+# Issue #9: Import monitoring module
+from app.monitoring import (
+    get_metrics_registry,
+    get_tracing_manager,
+    setup_monitoring_routes,
+)
+from app.monitoring.middleware import MetricsMiddleware
+from app.monitoring.trace_middleware import TraceContextMiddleware
 from app.routes import router
 from app.security.rate_limiting import setup_rate_limiting
 from db.connection import close_database, get_database
 from models.loader import get_model_loader, unload_model
-
-# Issue #9: Import monitoring module
-from app.monitoring import (
-    setup_monitoring_routes,
-    get_metrics_registry,
-    get_tracing_manager,
-)
-from app.monitoring.middleware import MetricsMiddleware
-from app.monitoring.trace_middleware import TraceContextMiddleware
 
 # Initialize settings
 settings = get_settings()
