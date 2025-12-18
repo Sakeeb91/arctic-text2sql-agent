@@ -1,9 +1,10 @@
 """
-Structured logging configuration using structlog.
+Structured logging configuration using structlog (Issue #9 enhanced).
 
 This module provides production-grade logging with:
 - JSON and console output formats
 - Request correlation IDs
+- Distributed trace correlation (trace_id, span_id)
 - Performance timing
 - Consistent log structure
 """
@@ -29,6 +30,71 @@ def add_request_id(
     return event_dict
 
 
+def add_trace_context(
+    logger: logging.Logger, method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Add trace context (trace_id, span_id) to log events (Issue #9).
+
+    This processor integrates with OpenTelemetry to add distributed
+    tracing information to all log entries for correlation.
+    """
+    try:
+        # Try to get trace context from OpenTelemetry
+        from app.monitoring.tracing import get_tracing_manager
+
+        tracing = get_tracing_manager()
+
+        trace_id = tracing.get_current_trace_id()
+        span_id = tracing.get_current_span_id()
+
+        if trace_id:
+            event_dict["trace_id"] = trace_id
+        if span_id:
+            event_dict["span_id"] = span_id
+
+    except ImportError:
+        # Monitoring module not available, try context vars
+        try:
+            from app.monitoring.tracing import trace_id_context, span_id_context
+
+            trace_id = trace_id_context.get()
+            span_id = span_id_context.get()
+
+            if trace_id:
+                event_dict["trace_id"] = trace_id
+            if span_id:
+                event_dict["span_id"] = span_id
+        except ImportError:
+            pass
+    except Exception:
+        # Don't fail logging if trace context extraction fails
+        pass
+
+    return event_dict
+
+
+def add_service_context(
+    logger: logging.Logger, method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """
+    Add service context to log events (Issue #9).
+
+    Adds service name and version for log aggregation and filtering.
+    """
+    try:
+        from app.config import get_settings
+
+        settings = get_settings()
+        event_dict["service"] = settings.monitoring.service_name
+        event_dict["service_version"] = settings.monitoring.service_version
+    except Exception:
+        # Don't fail logging if settings not available
+        event_dict["service"] = "arctic-text2sql"
+
+    return event_dict
+
+
 def configure_logging(
     level: str = "INFO",
     log_format: str = "json",
@@ -49,13 +115,15 @@ def configure_logging(
         logger = get_logger(__name__)
         logger.info("Application started", version="1.0.0")
     """
-    # Shared processors for all log entries
+    # Shared processors for all log entries (Issue #9: added trace correlation)
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         add_request_id,
+        add_trace_context,  # Issue #9: Add distributed trace context
+        add_service_context,  # Issue #9: Add service identification
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
