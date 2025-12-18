@@ -62,7 +62,103 @@ class MetricsRegistry:
             registry=self._registry,
         )
 
+        # Initialize request metrics
+        self._init_request_metrics()
+
         self._initialized = True
+
+    def _init_request_metrics(self) -> None:
+        """Initialize HTTP request metrics for QPS and latency tracking."""
+        # Request counter (QPS)
+        self.http_requests_total = Counter(
+            "arctic_text2sql_http_requests_total",
+            "Total HTTP requests",
+            ["method", "endpoint", "status_code"],
+            registry=self._registry,
+        )
+
+        # Request latency histogram with percentile buckets
+        # Buckets: 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
+        self.http_request_duration_seconds = Histogram(
+            "arctic_text2sql_http_request_duration_seconds",
+            "HTTP request latency in seconds",
+            ["method", "endpoint"],
+            buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+            registry=self._registry,
+        )
+
+        # Request size histogram
+        self.http_request_size_bytes = Histogram(
+            "arctic_text2sql_http_request_size_bytes",
+            "HTTP request size in bytes",
+            ["method", "endpoint"],
+            buckets=(100, 500, 1000, 5000, 10000, 50000, 100000, 500000),
+            registry=self._registry,
+        )
+
+        # Response size histogram
+        self.http_response_size_bytes = Histogram(
+            "arctic_text2sql_http_response_size_bytes",
+            "HTTP response size in bytes",
+            ["method", "endpoint"],
+            buckets=(100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000),
+            registry=self._registry,
+        )
+
+        # In-flight requests gauge
+        self.http_requests_in_flight = Gauge(
+            "arctic_text2sql_http_requests_in_flight",
+            "Number of HTTP requests currently being processed",
+            ["method", "endpoint"],
+            registry=self._registry,
+        )
+
+    def record_request(
+        self,
+        method: str,
+        endpoint: str,
+        status_code: int,
+        duration_seconds: float,
+        request_size: int = 0,
+        response_size: int = 0,
+    ) -> None:
+        """
+        Record HTTP request metrics.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            endpoint: Request endpoint path
+            status_code: HTTP response status code
+            duration_seconds: Request duration in seconds
+            request_size: Request body size in bytes
+            response_size: Response body size in bytes
+        """
+        # Increment request counter
+        self.http_requests_total.labels(
+            method=method,
+            endpoint=endpoint,
+            status_code=str(status_code),
+        ).inc()
+
+        # Record latency
+        self.http_request_duration_seconds.labels(
+            method=method,
+            endpoint=endpoint,
+        ).observe(duration_seconds)
+
+        # Record request size if available
+        if request_size > 0:
+            self.http_request_size_bytes.labels(
+                method=method,
+                endpoint=endpoint,
+            ).observe(request_size)
+
+        # Record response size if available
+        if response_size > 0:
+            self.http_response_size_bytes.labels(
+                method=method,
+                endpoint=endpoint,
+            ).observe(response_size)
 
     def set_service_info(
         self,
