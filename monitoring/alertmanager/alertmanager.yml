@@ -1,0 +1,83 @@
+global:
+  # Global configuration for alert manager
+  resolve_timeout: 5m
+  # SMTP configuration for email alerts (configure as needed)
+  # smtp_smarthost: 'smtp.gmail.com:587'
+  # smtp_from: 'alertmanager@example.com'
+  # smtp_auth_username: 'alertmanager@example.com'
+  # smtp_auth_password: 'password'
+
+# Route configuration for alert routing
+route:
+  # Default receiver
+  receiver: 'default-receiver'
+  # Group alerts by alertname to reduce noise
+  group_by: ['alertname', 'severity']
+  # Wait time before sending first notification
+  group_wait: 30s
+  # Wait time before sending subsequent notifications
+  group_interval: 5m
+  # Wait time before resending notifications
+  repeat_interval: 4h
+
+  # Child routes for specific alerts
+  routes:
+    # Critical alerts go immediately
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Warning alerts with longer intervals
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+      repeat_interval: 12h
+
+# Inhibition rules to suppress notifications
+inhibit_rules:
+  # If critical is firing, suppress warnings
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']
+
+# Receiver configurations
+receivers:
+  - name: 'default-receiver'
+    # Webhook for generic alerts
+    webhook_configs:
+      - url: 'http://localhost:5001/alerts'
+        send_resolved: true
+
+  - name: 'critical-receiver'
+    # Webhook for critical alerts (e.g., PagerDuty, Opsgenie)
+    webhook_configs:
+      - url: 'http://localhost:5001/alerts/critical'
+        send_resolved: true
+    # Uncomment to enable Slack notifications
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/xxx/yyy/zzz'
+    #     channel: '#alerts-critical'
+    #     title: '{{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    #     send_resolved: true
+
+  - name: 'warning-receiver'
+    # Webhook for warning alerts
+    webhook_configs:
+      - url: 'http://localhost:5001/alerts/warning'
+        send_resolved: true
+    # Uncomment to enable Slack notifications
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/xxx/yyy/zzz'
+    #     channel: '#alerts-warning'
+    #     title: '{{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    #     send_resolved: true
+
+# Templates for notification formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
