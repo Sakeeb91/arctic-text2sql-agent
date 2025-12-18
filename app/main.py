@@ -20,7 +20,11 @@ from db.connection import close_database, get_database
 from models.loader import get_model_loader, unload_model
 
 # Issue #9: Import monitoring module
-from app.monitoring import setup_monitoring_routes, get_metrics_registry, get_tracing_manager
+from app.monitoring import (
+    setup_monitoring_routes,
+    get_metrics_registry,
+    get_tracing_manager,
+)
 from app.monitoring.middleware import MetricsMiddleware
 from app.monitoring.trace_middleware import TraceContextMiddleware
 
@@ -207,7 +211,14 @@ setup_middleware(app, cors_origins=settings.api.cors_origins_list)
 if settings.monitoring.enable_metrics:
     app.add_middleware(
         MetricsMiddleware,
-        exclude_paths=["/metrics", "/monitoring/metrics", "/health", "/docs", "/redoc", "/openapi.json"],
+        exclude_paths=[
+            "/metrics",
+            "/monitoring/metrics",
+            "/health",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        ],
     )
 
 # Issue #9: Setup trace context middleware

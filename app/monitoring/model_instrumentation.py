@@ -71,7 +71,9 @@ class ModelInstrumentor:
         }
 
         try:
-            with self.tracing.create_span(span_name, attributes=span_attrs, kind="internal"):
+            with self.tracing.create_span(
+                span_name, attributes=span_attrs, kind="internal"
+            ):
                 yield context
 
                 # Calculate duration
@@ -89,9 +91,15 @@ class ModelInstrumentor:
 
                 # Add span attributes
                 self.tracing.set_span_attribute("model.duration_ms", duration * 1000)
-                self.tracing.set_span_attribute("model.input_tokens", context.get("input_tokens", 0))
-                self.tracing.set_span_attribute("model.output_tokens", context.get("output_tokens", 0))
-                self.tracing.set_span_attribute("model.confidence", context.get("confidence", 0.0))
+                self.tracing.set_span_attribute(
+                    "model.input_tokens", context.get("input_tokens", 0)
+                )
+                self.tracing.set_span_attribute(
+                    "model.output_tokens", context.get("output_tokens", 0)
+                )
+                self.tracing.set_span_attribute(
+                    "model.confidence", context.get("confidence", 0.0)
+                )
 
         except Exception as e:
             duration = time.perf_counter() - start_time
@@ -241,6 +249,7 @@ def trace_model_operation(
         async def generate_sql(self, query: str):
             ...
     """
+
     def decorator(func):
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -271,6 +280,7 @@ def trace_model_operation(
                 return func(*args, **kwargs)
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper

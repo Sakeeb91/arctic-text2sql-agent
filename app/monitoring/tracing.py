@@ -47,16 +47,24 @@ class TracingManager:
             from opentelemetry import trace
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
-            from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.sdk.resources import (
+                Resource,
+                SERVICE_NAME,
+                SERVICE_VERSION,
+            )
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
             from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 
             # Create resource with service info
-            resource = Resource.create({
-                SERVICE_NAME: self.settings.monitoring.service_name,
-                SERVICE_VERSION: self.settings.monitoring.service_version,
-                "deployment.environment": "production",
-            })
+            resource = Resource.create(
+                {
+                    SERVICE_NAME: self.settings.monitoring.service_name,
+                    SERVICE_VERSION: self.settings.monitoring.service_version,
+                    "deployment.environment": "production",
+                }
+            )
 
             # Create sampler based on configured rate
             sampler = TraceIdRatioBased(self.settings.monitoring.trace_sample_rate)
@@ -74,9 +82,7 @@ class TracingManager:
             )
 
             # Add span processor
-            self._provider.add_span_processor(
-                BatchSpanProcessor(otlp_exporter)
-            )
+            self._provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
             # Set as global tracer provider
             trace.set_tracer_provider(self._provider)

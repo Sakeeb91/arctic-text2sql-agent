@@ -109,7 +109,9 @@ class DatabaseInstrumentor:
             span_name = f"db.{query_type.lower()}"
 
             # Truncate statement for span name
-            truncated_stmt = statement[:100] + "..." if len(statement) > 100 else statement
+            truncated_stmt = (
+                statement[:100] + "..." if len(statement) > 100 else statement
+            )
 
             self.tracing.create_span(
                 span_name,
@@ -197,7 +199,9 @@ class DatabaseInstrumentor:
         if self.tracing.is_enabled:
             self.tracing.record_exception(original_exception)
 
-    def _on_checkout(self, dbapi_conn: Any, connection_record: Any, connection_proxy: Any) -> None:
+    def _on_checkout(
+        self, dbapi_conn: Any, connection_record: Any, connection_proxy: Any
+    ) -> None:
         """
         Event handler for connection checkout.
 
@@ -277,7 +281,9 @@ class DatabaseInstrumentor:
             )
 
 
-def setup_db_instrumentation(engine: Engine, database_id: str = "default") -> DatabaseInstrumentor:
+def setup_db_instrumentation(
+    engine: Engine, database_id: str = "default"
+) -> DatabaseInstrumentor:
     """
     Setup database instrumentation for a SQLAlchemy engine.
 

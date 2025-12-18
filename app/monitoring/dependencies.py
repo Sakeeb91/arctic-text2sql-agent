@@ -90,7 +90,11 @@ async def check_http_endpoint(
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=timeout)
             latency = (time.perf_counter() - start) * 1000
-            return response.status_code == expected_status, latency, response.status_code
+            return (
+                response.status_code == expected_status,
+                latency,
+                response.status_code,
+            )
     except Exception:
         latency = (time.perf_counter() - start) * 1000
         return False, latency, 0
@@ -234,7 +238,9 @@ async def check_otlp_collector(
         type=DependencyType.API,
         healthy=connected,
         latency_ms=latency,
-        message="OTLP collector reachable" if connected else "OTLP collector unreachable",
+        message=(
+            "OTLP collector reachable" if connected else "OTLP collector unreachable"
+        ),
         details={"endpoint": endpoint},
     )
 

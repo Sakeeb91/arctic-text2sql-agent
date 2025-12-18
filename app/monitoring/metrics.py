@@ -291,13 +291,13 @@ class MetricsRegistry:
 
         # Record token counts
         if input_tokens > 0:
-            self.model_tokens_total.labels(
+            self.model_tokens_total.labels(  # nosec B106 - token_type is a label, not a password
                 model_name=model_name,
                 token_type="input",
             ).inc(input_tokens)
 
         if output_tokens > 0:
-            self.model_tokens_total.labels(
+            self.model_tokens_total.labels(  # nosec B106 - token_type is a label, not a password
                 model_name=model_name,
                 token_type="output",
             ).inc(output_tokens)
@@ -387,7 +387,21 @@ class MetricsRegistry:
             "arctic_text2sql_sql_query_duration_seconds",
             "SQL query execution latency in seconds",
             ["database_id", "query_type"],
-            buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+            buckets=(
+                0.001,
+                0.005,
+                0.01,
+                0.025,
+                0.05,
+                0.1,
+                0.25,
+                0.5,
+                1.0,
+                2.5,
+                5.0,
+                10.0,
+                30.0,
+            ),
             registry=self._registry,
         )
 
@@ -947,12 +961,14 @@ class MetricsRegistry:
             model_name: Loaded model name
             environment: Deployment environment
         """
-        self.service_info.info({
-            "version": version,
-            "model_name": model_name,
-            "environment": environment,
-            "service_name": self.settings.monitoring.service_name,
-        })
+        self.service_info.info(
+            {
+                "version": version,
+                "model_name": model_name,
+                "environment": environment,
+                "service_name": self.settings.monitoring.service_name,
+            }
+        )
 
     @property
     def registry(self) -> CollectorRegistry:

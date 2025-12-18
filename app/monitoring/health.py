@@ -121,7 +121,9 @@ class HealthChecker:
                 c.status == HealthStatus.UNHEALTHY and c.name in critical
                 for c in components
             )
-            overall_status = HealthStatus.UNHEALTHY if critical_unhealthy else HealthStatus.DEGRADED
+            overall_status = (
+                HealthStatus.UNHEALTHY if critical_unhealthy else HealthStatus.DEGRADED
+            )
         else:
             overall_status = HealthStatus.DEGRADED
 

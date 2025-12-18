@@ -96,7 +96,9 @@ class TraceContextMiddleware(BaseHTTPMiddleware):
                 response = await call_next(request)
 
                 # Add trace attributes from response
-                self.tracing.set_span_attribute("http.status_code", response.status_code)
+                self.tracing.set_span_attribute(
+                    "http.status_code", response.status_code
+                )
 
                 # Add response headers
                 response = self._add_response_headers(
@@ -123,9 +125,8 @@ class TraceContextMiddleware(BaseHTTPMiddleware):
             The request ID
         """
         # Check for existing request ID headers
-        request_id = (
-            request.headers.get("X-Request-ID")
-            or request.headers.get("X-Correlation-ID")
+        request_id = request.headers.get("X-Request-ID") or request.headers.get(
+            "X-Correlation-ID"
         )
 
         # Generate if not present and enabled

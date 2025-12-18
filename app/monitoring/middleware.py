@@ -48,7 +48,13 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         """
         super().__init__(app)
         self.metrics = get_metrics_registry()
-        self.exclude_paths = exclude_paths or ["/metrics", "/health", "/docs", "/redoc", "/openapi.json"]
+        self.exclude_paths = exclude_paths or [
+            "/metrics",
+            "/health",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        ]
         self.normalize_path = normalize_path
 
     async def dispatch(

@@ -67,8 +67,7 @@ def add_trace_context(
                 event_dict["span_id"] = span_id
         except ImportError:
             pass
-    except Exception:
-        # Don't fail logging if trace context extraction fails
+    except Exception:  # nosec B110 - intentional pass, logging must not fail
         pass
 
     return event_dict
