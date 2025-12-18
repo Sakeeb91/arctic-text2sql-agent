@@ -68,6 +68,9 @@ class MetricsRegistry:
         # Initialize error metrics
         self._init_error_metrics()
 
+        # Initialize model inference metrics
+        self._init_model_metrics()
+
         self._initialized = True
 
     def _init_request_metrics(self) -> None:
@@ -173,6 +176,194 @@ class MetricsRegistry:
             ["circuit_name"],
             registry=self._registry,
         )
+
+    def _init_model_metrics(self) -> None:
+        """Initialize model inference metrics."""
+        # Model inference counter
+        self.model_inferences_total = Counter(
+            "arctic_text2sql_model_inferences_total",
+            "Total model inference requests",
+            ["model_name", "status"],
+            registry=self._registry,
+        )
+
+        # Model inference latency histogram
+        # Buckets optimized for LLM inference: 100ms to 60s
+        self.model_inference_duration_seconds = Histogram(
+            "arctic_text2sql_model_inference_duration_seconds",
+            "Model inference latency in seconds",
+            ["model_name"],
+            buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 60.0),
+            registry=self._registry,
+        )
+
+        # Token usage counters
+        self.model_tokens_total = Counter(
+            "arctic_text2sql_model_tokens_total",
+            "Total tokens processed",
+            ["model_name", "token_type"],  # token_type: input, output
+            registry=self._registry,
+        )
+
+        # Model confidence histogram
+        self.model_confidence_score = Histogram(
+            "arctic_text2sql_model_confidence_score",
+            "Model confidence score distribution",
+            ["model_name"],
+            buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+            registry=self._registry,
+        )
+
+        # Model memory usage gauge
+        self.model_memory_bytes = Gauge(
+            "arctic_text2sql_model_memory_bytes",
+            "Model memory usage in bytes",
+            ["model_name", "memory_type"],  # memory_type: cpu, gpu
+            registry=self._registry,
+        )
+
+        # Model loading status gauge
+        self.model_loaded = Gauge(
+            "arctic_text2sql_model_loaded",
+            "Whether model is currently loaded (1=loaded, 0=unloaded)",
+            ["model_name"],
+            registry=self._registry,
+        )
+
+        # Agent reasoning steps histogram
+        self.agent_reasoning_steps = Histogram(
+            "arctic_text2sql_agent_reasoning_steps",
+            "Number of reasoning steps per query",
+            ["model_name"],
+            buckets=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+            registry=self._registry,
+        )
+
+        # Self-correction attempts counter
+        self.self_correction_attempts_total = Counter(
+            "arctic_text2sql_self_correction_attempts_total",
+            "Total self-correction attempts",
+            ["model_name", "success"],
+            registry=self._registry,
+        )
+
+    def record_model_inference(
+        self,
+        model_name: str,
+        status: str,
+        duration_seconds: float,
+        confidence: float,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> None:
+        """
+        Record model inference metrics.
+
+        Args:
+            model_name: Name of the model used
+            status: Inference status ('success', 'failure', 'timeout')
+            duration_seconds: Inference duration in seconds
+            confidence: Model confidence score (0.0-1.0)
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+        """
+        # Increment inference counter
+        self.model_inferences_total.labels(
+            model_name=model_name,
+            status=status,
+        ).inc()
+
+        # Record latency
+        self.model_inference_duration_seconds.labels(
+            model_name=model_name,
+        ).observe(duration_seconds)
+
+        # Record confidence
+        self.model_confidence_score.labels(
+            model_name=model_name,
+        ).observe(confidence)
+
+        # Record token counts
+        if input_tokens > 0:
+            self.model_tokens_total.labels(
+                model_name=model_name,
+                token_type="input",
+            ).inc(input_tokens)
+
+        if output_tokens > 0:
+            self.model_tokens_total.labels(
+                model_name=model_name,
+                token_type="output",
+            ).inc(output_tokens)
+
+    def record_reasoning_steps(
+        self,
+        model_name: str,
+        steps: int,
+    ) -> None:
+        """
+        Record agent reasoning step count.
+
+        Args:
+            model_name: Name of the model used
+            steps: Number of reasoning steps taken
+        """
+        self.agent_reasoning_steps.labels(model_name=model_name).observe(steps)
+
+    def record_self_correction(
+        self,
+        model_name: str,
+        success: bool,
+    ) -> None:
+        """
+        Record a self-correction attempt.
+
+        Args:
+            model_name: Name of the model used
+            success: Whether the correction was successful
+        """
+        self.self_correction_attempts_total.labels(
+            model_name=model_name,
+            success=str(success).lower(),
+        ).inc()
+
+    def set_model_memory(
+        self,
+        model_name: str,
+        cpu_bytes: int,
+        gpu_bytes: int = 0,
+    ) -> None:
+        """
+        Set model memory usage.
+
+        Args:
+            model_name: Name of the model
+            cpu_bytes: CPU memory usage in bytes
+            gpu_bytes: GPU memory usage in bytes
+        """
+        self.model_memory_bytes.labels(
+            model_name=model_name,
+            memory_type="cpu",
+        ).set(cpu_bytes)
+
+        self.model_memory_bytes.labels(
+            model_name=model_name,
+            memory_type="gpu",
+        ).set(gpu_bytes)
+
+    def set_model_loaded_status(
+        self,
+        model_name: str,
+        loaded: bool,
+    ) -> None:
+        """
+        Set model loaded status.
+
+        Args:
+            model_name: Name of the model
+            loaded: Whether the model is loaded
+        """
+        self.model_loaded.labels(model_name=model_name).set(1 if loaded else 0)
 
     def record_error(
         self,
