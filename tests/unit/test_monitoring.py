@@ -4,7 +4,6 @@ Unit tests for monitoring module (Issue #9).
 Tests cover metrics collection, health checks, and tracing functionality.
 """
 
-
 import pytest
 
 
