@@ -71,6 +71,9 @@ class MetricsRegistry:
         # Initialize model inference metrics
         self._init_model_metrics()
 
+        # Initialize SQL execution metrics
+        self._init_sql_metrics()
+
         self._initialized = True
 
     def _init_request_metrics(self) -> None:
@@ -364,6 +367,203 @@ class MetricsRegistry:
             loaded: Whether the model is loaded
         """
         self.model_loaded.labels(model_name=model_name).set(1 if loaded else 0)
+
+    def _init_sql_metrics(self) -> None:
+        """Initialize SQL execution metrics."""
+        # SQL query counter
+        self.sql_queries_total = Counter(
+            "arctic_text2sql_sql_queries_total",
+            "Total SQL queries executed",
+            ["database_id", "query_type", "status"],
+            registry=self._registry,
+        )
+
+        # SQL query latency histogram
+        # Buckets: 1ms to 30s for database queries
+        self.sql_query_duration_seconds = Histogram(
+            "arctic_text2sql_sql_query_duration_seconds",
+            "SQL query execution latency in seconds",
+            ["database_id", "query_type"],
+            buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+            registry=self._registry,
+        )
+
+        # SQL rows returned histogram
+        self.sql_rows_returned = Histogram(
+            "arctic_text2sql_sql_rows_returned",
+            "Number of rows returned by SQL queries",
+            ["database_id"],
+            buckets=(0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000),
+            registry=self._registry,
+        )
+
+        # Database connection pool metrics
+        self.db_pool_size = Gauge(
+            "arctic_text2sql_db_pool_size",
+            "Database connection pool size",
+            ["database_id"],
+            registry=self._registry,
+        )
+
+        self.db_pool_checked_out = Gauge(
+            "arctic_text2sql_db_pool_checked_out",
+            "Database connections currently checked out",
+            ["database_id"],
+            registry=self._registry,
+        )
+
+        self.db_pool_overflow = Gauge(
+            "arctic_text2sql_db_pool_overflow",
+            "Database connection pool overflow",
+            ["database_id"],
+            registry=self._registry,
+        )
+
+        # SQL validation metrics
+        self.sql_validation_total = Counter(
+            "arctic_text2sql_sql_validation_total",
+            "Total SQL validation requests",
+            ["database_id", "valid"],
+            registry=self._registry,
+        )
+
+        # SQL syntax errors counter
+        self.sql_syntax_errors_total = Counter(
+            "arctic_text2sql_sql_syntax_errors_total",
+            "Total SQL syntax errors detected",
+            ["database_id", "error_type"],
+            registry=self._registry,
+        )
+
+        # Schema introspection metrics
+        self.schema_introspection_total = Counter(
+            "arctic_text2sql_schema_introspection_total",
+            "Total schema introspection requests",
+            ["database_id", "status"],
+            registry=self._registry,
+        )
+
+        self.schema_introspection_duration_seconds = Histogram(
+            "arctic_text2sql_schema_introspection_duration_seconds",
+            "Schema introspection latency in seconds",
+            ["database_id"],
+            buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+            registry=self._registry,
+        )
+
+    def record_sql_query(
+        self,
+        database_id: str,
+        query_type: str,
+        status: str,
+        duration_seconds: float,
+        rows_returned: int = 0,
+    ) -> None:
+        """
+        Record SQL query execution metrics.
+
+        Args:
+            database_id: Database identifier
+            query_type: Type of query (SELECT, INSERT, UPDATE, DELETE, etc.)
+            status: Query status ('success', 'error', 'timeout')
+            duration_seconds: Query execution time in seconds
+            rows_returned: Number of rows returned (for SELECT queries)
+        """
+        # Increment query counter
+        self.sql_queries_total.labels(
+            database_id=database_id,
+            query_type=query_type,
+            status=status,
+        ).inc()
+
+        # Record latency
+        self.sql_query_duration_seconds.labels(
+            database_id=database_id,
+            query_type=query_type,
+        ).observe(duration_seconds)
+
+        # Record rows returned
+        if rows_returned > 0:
+            self.sql_rows_returned.labels(
+                database_id=database_id,
+            ).observe(rows_returned)
+
+    def record_sql_validation(
+        self,
+        database_id: str,
+        valid: bool,
+    ) -> None:
+        """
+        Record SQL validation result.
+
+        Args:
+            database_id: Database identifier
+            valid: Whether the SQL was valid
+        """
+        self.sql_validation_total.labels(
+            database_id=database_id,
+            valid=str(valid).lower(),
+        ).inc()
+
+    def record_sql_syntax_error(
+        self,
+        database_id: str,
+        error_type: str,
+    ) -> None:
+        """
+        Record a SQL syntax error.
+
+        Args:
+            database_id: Database identifier
+            error_type: Type of syntax error
+        """
+        self.sql_syntax_errors_total.labels(
+            database_id=database_id,
+            error_type=error_type,
+        ).inc()
+
+    def record_schema_introspection(
+        self,
+        database_id: str,
+        status: str,
+        duration_seconds: float,
+    ) -> None:
+        """
+        Record schema introspection metrics.
+
+        Args:
+            database_id: Database identifier
+            status: Introspection status ('success', 'error', 'cached')
+            duration_seconds: Introspection duration in seconds
+        """
+        self.schema_introspection_total.labels(
+            database_id=database_id,
+            status=status,
+        ).inc()
+
+        self.schema_introspection_duration_seconds.labels(
+            database_id=database_id,
+        ).observe(duration_seconds)
+
+    def set_db_pool_metrics(
+        self,
+        database_id: str,
+        pool_size: int,
+        checked_out: int,
+        overflow: int,
+    ) -> None:
+        """
+        Set database connection pool metrics.
+
+        Args:
+            database_id: Database identifier
+            pool_size: Total pool size
+            checked_out: Connections currently checked out
+            overflow: Overflow connections in use
+        """
+        self.db_pool_size.labels(database_id=database_id).set(pool_size)
+        self.db_pool_checked_out.labels(database_id=database_id).set(checked_out)
+        self.db_pool_overflow.labels(database_id=database_id).set(overflow)
 
     def record_error(
         self,
