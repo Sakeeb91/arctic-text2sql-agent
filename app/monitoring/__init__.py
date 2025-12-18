@@ -17,10 +17,18 @@ from app.monitoring.middleware import (
     MetricsMiddleware,
     setup_metrics_middleware,
 )
+from app.monitoring.tracing import (
+    TracingManager,
+    get_tracing_manager,
+    trace_function,
+)
 
 __all__ = [
     "MetricsRegistry",
     "get_metrics_registry",
     "MetricsMiddleware",
     "setup_metrics_middleware",
+    "TracingManager",
+    "get_tracing_manager",
+    "trace_function",
 ]
