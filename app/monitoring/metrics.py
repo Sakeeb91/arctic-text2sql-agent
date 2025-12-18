@@ -74,6 +74,9 @@ class MetricsRegistry:
         # Initialize SQL execution metrics
         self._init_sql_metrics()
 
+        # Initialize cache metrics
+        self._init_cache_metrics()
+
         self._initialized = True
 
     def _init_request_metrics(self) -> None:
@@ -564,6 +567,210 @@ class MetricsRegistry:
         self.db_pool_size.labels(database_id=database_id).set(pool_size)
         self.db_pool_checked_out.labels(database_id=database_id).set(checked_out)
         self.db_pool_overflow.labels(database_id=database_id).set(overflow)
+
+    def _init_cache_metrics(self) -> None:
+        """Initialize cache performance metrics."""
+        # Cache operations counter
+        self.cache_operations_total = Counter(
+            "arctic_text2sql_cache_operations_total",
+            "Total cache operations",
+            ["namespace", "operation", "result"],  # operation: get, set, delete
+            registry=self._registry,
+        )
+
+        # Cache hit/miss counter (for easy hit rate calculation)
+        self.cache_hits_total = Counter(
+            "arctic_text2sql_cache_hits_total",
+            "Total cache hits",
+            ["namespace"],
+            registry=self._registry,
+        )
+
+        self.cache_misses_total = Counter(
+            "arctic_text2sql_cache_misses_total",
+            "Total cache misses",
+            ["namespace"],
+            registry=self._registry,
+        )
+
+        # Cache operation latency
+        self.cache_operation_duration_seconds = Histogram(
+            "arctic_text2sql_cache_operation_duration_seconds",
+            "Cache operation latency in seconds",
+            ["namespace", "operation"],
+            buckets=(0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1),
+            registry=self._registry,
+        )
+
+        # Cache size gauges
+        self.cache_entries = Gauge(
+            "arctic_text2sql_cache_entries",
+            "Number of entries in cache",
+            ["namespace", "storage_type"],  # storage_type: memory, redis
+            registry=self._registry,
+        )
+
+        self.cache_size_bytes = Gauge(
+            "arctic_text2sql_cache_size_bytes",
+            "Cache size in bytes",
+            ["namespace", "storage_type"],
+            registry=self._registry,
+        )
+
+        # Cache evictions counter
+        self.cache_evictions_total = Counter(
+            "arctic_text2sql_cache_evictions_total",
+            "Total cache evictions",
+            ["namespace", "reason"],  # reason: expired, size_limit, manual
+            registry=self._registry,
+        )
+
+        # Redis connection status
+        self.cache_redis_connected = Gauge(
+            "arctic_text2sql_cache_redis_connected",
+            "Whether Redis cache is connected (1=connected, 0=disconnected)",
+            registry=self._registry,
+        )
+
+        # Cache errors
+        self.cache_errors_total = Counter(
+            "arctic_text2sql_cache_errors_total",
+            "Total cache errors",
+            ["namespace", "error_type"],
+            registry=self._registry,
+        )
+
+    def record_cache_operation(
+        self,
+        namespace: str,
+        operation: str,
+        result: str,
+        duration_seconds: float,
+    ) -> None:
+        """
+        Record a cache operation.
+
+        Args:
+            namespace: Cache namespace (query, model, schema)
+            operation: Operation type (get, set, delete)
+            result: Operation result (hit, miss, success, error)
+            duration_seconds: Operation duration in seconds
+        """
+        self.cache_operations_total.labels(
+            namespace=namespace,
+            operation=operation,
+            result=result,
+        ).inc()
+
+        self.cache_operation_duration_seconds.labels(
+            namespace=namespace,
+            operation=operation,
+        ).observe(duration_seconds)
+
+        # Update hit/miss counters for get operations
+        if operation == "get":
+            if result == "hit":
+                self.cache_hits_total.labels(namespace=namespace).inc()
+            elif result == "miss":
+                self.cache_misses_total.labels(namespace=namespace).inc()
+
+    def record_cache_hit(
+        self,
+        namespace: str,
+        duration_seconds: float = 0.0,
+    ) -> None:
+        """
+        Record a cache hit.
+
+        Args:
+            namespace: Cache namespace
+            duration_seconds: Operation duration in seconds
+        """
+        self.record_cache_operation(namespace, "get", "hit", duration_seconds)
+
+    def record_cache_miss(
+        self,
+        namespace: str,
+        duration_seconds: float = 0.0,
+    ) -> None:
+        """
+        Record a cache miss.
+
+        Args:
+            namespace: Cache namespace
+            duration_seconds: Operation duration in seconds
+        """
+        self.record_cache_operation(namespace, "get", "miss", duration_seconds)
+
+    def record_cache_eviction(
+        self,
+        namespace: str,
+        reason: str,
+    ) -> None:
+        """
+        Record a cache eviction.
+
+        Args:
+            namespace: Cache namespace
+            reason: Eviction reason (expired, size_limit, manual)
+        """
+        self.cache_evictions_total.labels(
+            namespace=namespace,
+            reason=reason,
+        ).inc()
+
+    def record_cache_error(
+        self,
+        namespace: str,
+        error_type: str,
+    ) -> None:
+        """
+        Record a cache error.
+
+        Args:
+            namespace: Cache namespace
+            error_type: Type of error
+        """
+        self.cache_errors_total.labels(
+            namespace=namespace,
+            error_type=error_type,
+        ).inc()
+
+    def set_cache_size(
+        self,
+        namespace: str,
+        storage_type: str,
+        entries: int,
+        size_bytes: int = 0,
+    ) -> None:
+        """
+        Set cache size metrics.
+
+        Args:
+            namespace: Cache namespace
+            storage_type: Storage type (memory, redis)
+            entries: Number of entries
+            size_bytes: Size in bytes
+        """
+        self.cache_entries.labels(
+            namespace=namespace,
+            storage_type=storage_type,
+        ).set(entries)
+
+        if size_bytes > 0:
+            self.cache_size_bytes.labels(
+                namespace=namespace,
+                storage_type=storage_type,
+            ).set(size_bytes)
+
+    def set_redis_connected(self, connected: bool) -> None:
+        """
+        Set Redis connection status.
+
+        Args:
+            connected: Whether Redis is connected
+        """
+        self.cache_redis_connected.set(1 if connected else 0)
 
     def record_error(
         self,
