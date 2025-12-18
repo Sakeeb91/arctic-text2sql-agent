@@ -13,8 +13,14 @@ from app.monitoring.metrics import (
     MetricsRegistry,
     get_metrics_registry,
 )
+from app.monitoring.middleware import (
+    MetricsMiddleware,
+    setup_metrics_middleware,
+)
 
 __all__ = [
     "MetricsRegistry",
     "get_metrics_registry",
+    "MetricsMiddleware",
+    "setup_metrics_middleware",
 ]
