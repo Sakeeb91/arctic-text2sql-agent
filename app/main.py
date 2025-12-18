@@ -19,6 +19,11 @@ from app.security.rate_limiting import setup_rate_limiting
 from db.connection import close_database, get_database
 from models.loader import get_model_loader, unload_model
 
+# Issue #9: Import monitoring module
+from app.monitoring import setup_monitoring_routes, get_metrics_registry, get_tracing_manager
+from app.monitoring.middleware import MetricsMiddleware
+from app.monitoring.trace_middleware import TraceContextMiddleware
+
 # Initialize settings
 settings = get_settings()
 
@@ -99,6 +104,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             message="No HUGGINGFACE_TOKEN provided, model will not be loaded",
         )
 
+    # Issue #9: Initialize monitoring
+    logger.info("monitoring_initializing")
+    try:
+        # Initialize tracing
+        tracing = get_tracing_manager()
+        tracing_enabled = tracing.initialize()
+
+        # Set service info in metrics
+        metrics = get_metrics_registry()
+        metrics.set_service_info(
+            version=__version__,
+            model_name=settings.huggingface.model_name,
+            environment="production" if not settings.api.debug else "development",
+        )
+
+        # Set model loaded status
+        metrics.set_model_loaded_status(
+            model_name=settings.huggingface.model_name,
+            loaded=model_loaded,
+        )
+
+        logger.info(
+            "monitoring_initialized",
+            metrics_enabled=settings.monitoring.enable_metrics,
+            tracing_enabled=tracing_enabled,
+            service_name=settings.monitoring.service_name,
+        )
+    except Exception as e:
+        logger.warning("monitoring_initialization_failed", error=str(e))
+
     logger.info("application_started", model_loaded=model_loaded)
 
     yield
@@ -115,6 +150,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("model_unloading")
     unload_model()
     logger.info("model_unloaded")
+
+    # Issue #9: Shutdown tracing
+    logger.info("tracing_shutting_down")
+    try:
+        tracing = get_tracing_manager()
+        tracing.shutdown()
+        logger.info("tracing_shutdown_complete")
+    except Exception as e:
+        logger.warning("tracing_shutdown_failed", error=str(e))
 
     logger.info("application_stopped")
 
@@ -159,6 +203,17 @@ app = FastAPI(
 # Setup middleware
 setup_middleware(app, cors_origins=settings.api.cors_origins_list)
 
+# Issue #9: Setup monitoring middleware (before other middleware for accurate timing)
+if settings.monitoring.enable_metrics:
+    app.add_middleware(
+        MetricsMiddleware,
+        exclude_paths=["/metrics", "/monitoring/metrics", "/health", "/docs", "/redoc", "/openapi.json"],
+    )
+
+# Issue #9: Setup trace context middleware
+if settings.monitoring.enable_tracing:
+    app.add_middleware(TraceContextMiddleware)
+
 # Setup exception handlers (Phase 2.3: Error Handling & Resilience)
 setup_exception_handlers(app)
 
@@ -167,6 +222,10 @@ setup_rate_limiting(app)
 
 # Include API routes
 app.include_router(router)
+
+# Issue #9: Include monitoring routes
+if settings.monitoring.enable_metrics:
+    setup_monitoring_routes(app)
 
 
 @app.get("/", include_in_schema=False)
