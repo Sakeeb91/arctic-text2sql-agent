@@ -294,13 +294,17 @@ class MetricsRegistry:
             self.model_tokens_total.labels(  # nosec B106 - token_type is a label, not a password
                 model_name=model_name,
                 token_type="input",
-            ).inc(input_tokens)
+            ).inc(
+                input_tokens
+            )
 
         if output_tokens > 0:
             self.model_tokens_total.labels(  # nosec B106 - token_type is a label, not a password
                 model_name=model_name,
                 token_type="output",
-            ).inc(output_tokens)
+            ).inc(
+                output_tokens
+            )
 
     def record_reasoning_steps(
         self,
