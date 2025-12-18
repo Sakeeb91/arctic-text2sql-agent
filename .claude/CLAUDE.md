@@ -288,3 +288,162 @@ smolagents>=1.0.0
 ```
 
 If `uv` fails with version conflicts, update these versions in `requirements.txt`.
+
+## Monitoring & Observability (Issue #9)
+
+The application includes comprehensive monitoring with Prometheus metrics, distributed tracing, and health checks.
+
+### Architecture
+
+```
+app/monitoring/           # Monitoring module
+├── __init__.py          # Module exports, setup_monitoring()
+├── metrics.py           # MetricsRegistry with all Prometheus metrics
+├── middleware.py        # MetricsMiddleware for auto-instrumentation
+├── tracing.py           # OpenTelemetry TracingManager
+├── trace_middleware.py  # TraceContextMiddleware for W3C propagation
+├── health.py            # HealthChecker with component checks
+├── dependencies.py      # External dependency health checks
+├── endpoints.py         # /monitoring/* API routes
+├── db_instrumentation.py    # SQLAlchemy tracing
+└── model_instrumentation.py # LLM inference tracing
+
+monitoring/              # Configuration files
+├── grafana/
+│   └── dashboard.json   # Pre-configured Grafana dashboard
+├── prometheus/
+│   ├── prometheus.yml   # Prometheus scrape config
+│   └── alerts.yml       # Alerting rules
+└── alertmanager/
+    └── alertmanager.yml # Alert routing config
+```
+
+### Environment Variables
+
+```bash
+# Metrics
+ENABLE_METRICS=true              # Enable Prometheus metrics
+METRICS_PORT=9090                # Metrics port (default)
+METRICS_PATH=/metrics            # Metrics endpoint path
+
+# Tracing
+ENABLE_TRACING=true              # Enable OpenTelemetry tracing
+OTLP_ENDPOINT=http://localhost:4317  # OTLP collector endpoint
+TRACE_SAMPLE_RATE=1.0            # Sampling rate (0.0-1.0)
+SERVICE_NAME=arctic-text2sql     # Service name for traces
+SERVICE_VERSION=1.0.0            # Service version
+
+# Health Checks
+HEALTH_CHECK_INTERVAL=30         # Check interval (seconds)
+HEALTH_CHECK_TIMEOUT=5           # Check timeout (seconds)
+
+# Alerting
+ENABLE_ALERTING=true             # Enable alerting rules
+ALERTMANAGER_URL=                # Alertmanager endpoint
+```
+
+### Monitoring Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /monitoring/metrics` | Prometheus metrics (text format) |
+| `GET /monitoring/health` | Detailed component health |
+| `GET /monitoring/health/live` | Kubernetes liveness probe |
+| `GET /monitoring/health/ready` | Kubernetes readiness probe |
+| `GET /monitoring/dependencies` | External dependency health |
+
+### Key Metrics
+
+**Request Metrics:**
+- `arctic_text2sql_http_requests_total` - Request count (QPS)
+- `arctic_text2sql_http_request_duration_seconds` - Latency histogram
+- `arctic_text2sql_http_requests_in_flight` - Active requests
+
+**Model Metrics:**
+- `arctic_text2sql_model_inferences_total` - Inference count
+- `arctic_text2sql_model_inference_duration_seconds` - Inference latency
+- `arctic_text2sql_model_confidence_score` - Confidence distribution
+- `arctic_text2sql_agent_reasoning_steps` - Steps per query
+
+**Database Metrics:**
+- `arctic_text2sql_sql_queries_total` - Query count
+- `arctic_text2sql_sql_query_duration_seconds` - Query latency
+- `arctic_text2sql_db_pool_*` - Connection pool metrics
+
+**Cache Metrics:**
+- `arctic_text2sql_cache_hits_total` - Cache hits
+- `arctic_text2sql_cache_misses_total` - Cache misses
+- `arctic_text2sql_cache_redis_connected` - Redis status
+
+### Running the Monitoring Stack
+
+```bash
+# Start full monitoring stack
+docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+# Access UIs
+# Grafana:      http://localhost:3000 (admin/admin)
+# Prometheus:   http://localhost:9090
+# Jaeger:       http://localhost:16686
+# Alertmanager: http://localhost:9093
+```
+
+### Using the Monitoring Module
+
+```python
+from app.monitoring import (
+    get_metrics_registry,
+    get_tracing_manager,
+    trace_function,
+)
+
+# Record custom metrics
+metrics = get_metrics_registry()
+metrics.record_model_inference(
+    model_name="arctic-text2sql",
+    status="success",
+    duration_seconds=1.5,
+    confidence=0.85,
+)
+
+# Trace a function
+@trace_function(name="my_operation")
+async def my_function():
+    pass
+
+# Manual span creation
+tracing = get_tracing_manager()
+with tracing.create_span("custom_span", attributes={"key": "value"}):
+    # Your code here
+    pass
+```
+
+### Log Correlation
+
+All logs automatically include trace context:
+
+```json
+{
+  "event": "query_processed",
+  "trace_id": "abc123...",
+  "span_id": "def456...",
+  "request_id": "req-789",
+  "service": "arctic-text2sql",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### Alert Rules
+
+Pre-configured alerts in `monitoring/prometheus/alerts.yml`:
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| ServiceDown | Service unreachable for 1m | Critical |
+| HighErrorRate | Error rate > 5% for 5m | Warning |
+| CriticalErrorRate | Error rate > 10% for 2m | Critical |
+| HighP95Latency | P95 > 2s for 5m | Warning |
+| ModelInferenceSlowdown | P95 > 30s for 5m | Warning |
+| DatabaseConnectionPoolExhausted | Pool > 90% for 5m | Warning |
+| LowCacheHitRate | Hit rate < 50% for 15m | Warning |
+| CircuitBreakerOpen | Circuit open for 1m | Critical |
