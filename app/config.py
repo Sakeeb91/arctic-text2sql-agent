@@ -255,10 +255,11 @@ class ResilienceSettings(BaseSettings):
 
 
 class MonitoringSettings(BaseSettings):
-    """Monitoring and metrics configuration."""
+    """Monitoring, metrics, and tracing configuration (Issue #9)."""
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
+    # Prometheus Metrics
     enable_metrics: bool = Field(
         default=True,
         alias="ENABLE_METRICS",
@@ -270,6 +271,68 @@ class MonitoringSettings(BaseSettings):
         ge=1,
         le=65535,
         description="Prometheus metrics port",
+    )
+    metrics_path: str = Field(
+        default="/metrics",
+        alias="METRICS_PATH",
+        description="Path for Prometheus metrics endpoint",
+    )
+
+    # Distributed Tracing (OpenTelemetry)
+    enable_tracing: bool = Field(
+        default=True,
+        alias="ENABLE_TRACING",
+        description="Enable distributed tracing with OpenTelemetry",
+    )
+    otlp_endpoint: str = Field(
+        default="http://localhost:4317",
+        alias="OTLP_ENDPOINT",
+        description="OpenTelemetry collector OTLP endpoint",
+    )
+    trace_sample_rate: float = Field(
+        default=1.0,
+        alias="TRACE_SAMPLE_RATE",
+        ge=0.0,
+        le=1.0,
+        description="Trace sampling rate (0.0-1.0)",
+    )
+    service_name: str = Field(
+        default="arctic-text2sql",
+        alias="SERVICE_NAME",
+        description="Service name for tracing",
+    )
+    service_version: str = Field(
+        default="1.0.0",
+        alias="SERVICE_VERSION",
+        description="Service version for tracing",
+    )
+
+    # Health Checks
+    health_check_interval: int = Field(
+        default=30,
+        alias="HEALTH_CHECK_INTERVAL",
+        ge=5,
+        le=300,
+        description="Health check interval in seconds",
+    )
+    health_check_timeout: int = Field(
+        default=5,
+        alias="HEALTH_CHECK_TIMEOUT",
+        ge=1,
+        le=30,
+        description="Health check timeout in seconds",
+    )
+
+    # Alerting
+    enable_alerting: bool = Field(
+        default=True,
+        alias="ENABLE_ALERTING",
+        description="Enable alerting rules",
+    )
+    alertmanager_url: str | None = Field(
+        default=None,
+        alias="ALERTMANAGER_URL",
+        description="Alertmanager URL for sending alerts",
     )
 
 
