@@ -65,6 +65,9 @@ class MetricsRegistry:
         # Initialize request metrics
         self._init_request_metrics()
 
+        # Initialize error metrics
+        self._init_error_metrics()
+
         self._initialized = True
 
     def _init_request_metrics(self) -> None:
@@ -112,6 +115,178 @@ class MetricsRegistry:
             ["method", "endpoint"],
             registry=self._registry,
         )
+
+    def _init_error_metrics(self) -> None:
+        """Initialize error tracking metrics by type and source."""
+        # Total errors counter by type
+        self.errors_total = Counter(
+            "arctic_text2sql_errors_total",
+            "Total errors by type",
+            ["error_type", "source", "severity"],
+            registry=self._registry,
+        )
+
+        # Application exception counter
+        self.exceptions_total = Counter(
+            "arctic_text2sql_exceptions_total",
+            "Total unhandled exceptions",
+            ["exception_class", "endpoint"],
+            registry=self._registry,
+        )
+
+        # Validation error counter
+        self.validation_errors_total = Counter(
+            "arctic_text2sql_validation_errors_total",
+            "Total validation errors",
+            ["field", "error_type"],
+            registry=self._registry,
+        )
+
+        # Authentication/authorization errors
+        self.auth_errors_total = Counter(
+            "arctic_text2sql_auth_errors_total",
+            "Total authentication and authorization errors",
+            ["error_type", "endpoint"],
+            registry=self._registry,
+        )
+
+        # Rate limit errors
+        self.rate_limit_errors_total = Counter(
+            "arctic_text2sql_rate_limit_errors_total",
+            "Total rate limit exceeded errors",
+            ["endpoint", "client_ip"],
+            registry=self._registry,
+        )
+
+        # Circuit breaker state gauge
+        self.circuit_breaker_state = Gauge(
+            "arctic_text2sql_circuit_breaker_state",
+            "Circuit breaker state (0=closed, 1=half-open, 2=open)",
+            ["circuit_name"],
+            registry=self._registry,
+        )
+
+        # Circuit breaker trips counter
+        self.circuit_breaker_trips_total = Counter(
+            "arctic_text2sql_circuit_breaker_trips_total",
+            "Total circuit breaker trips",
+            ["circuit_name"],
+            registry=self._registry,
+        )
+
+    def record_error(
+        self,
+        error_type: str,
+        source: str,
+        severity: str = "error",
+    ) -> None:
+        """
+        Record an error metric.
+
+        Args:
+            error_type: Type of error (e.g., 'validation', 'database', 'model')
+            source: Source of error (e.g., module or function name)
+            severity: Error severity ('warning', 'error', 'critical')
+        """
+        self.errors_total.labels(
+            error_type=error_type,
+            source=source,
+            severity=severity,
+        ).inc()
+
+    def record_exception(
+        self,
+        exception_class: str,
+        endpoint: str,
+    ) -> None:
+        """
+        Record an unhandled exception.
+
+        Args:
+            exception_class: Name of the exception class
+            endpoint: Endpoint where exception occurred
+        """
+        self.exceptions_total.labels(
+            exception_class=exception_class,
+            endpoint=endpoint,
+        ).inc()
+
+    def record_validation_error(
+        self,
+        field: str,
+        error_type: str,
+    ) -> None:
+        """
+        Record a validation error.
+
+        Args:
+            field: Field that failed validation
+            error_type: Type of validation error
+        """
+        self.validation_errors_total.labels(
+            field=field,
+            error_type=error_type,
+        ).inc()
+
+    def record_auth_error(
+        self,
+        error_type: str,
+        endpoint: str,
+    ) -> None:
+        """
+        Record an authentication/authorization error.
+
+        Args:
+            error_type: Type of auth error ('invalid_token', 'expired', 'unauthorized')
+            endpoint: Endpoint where error occurred
+        """
+        self.auth_errors_total.labels(
+            error_type=error_type,
+            endpoint=endpoint,
+        ).inc()
+
+    def record_rate_limit(
+        self,
+        endpoint: str,
+        client_ip: str = "unknown",
+    ) -> None:
+        """
+        Record a rate limit exceeded event.
+
+        Args:
+            endpoint: Endpoint where rate limit was exceeded
+            client_ip: Client IP address (can be anonymized)
+        """
+        self.rate_limit_errors_total.labels(
+            endpoint=endpoint,
+            client_ip=client_ip,
+        ).inc()
+
+    def set_circuit_breaker_state(
+        self,
+        circuit_name: str,
+        state: int,
+    ) -> None:
+        """
+        Set circuit breaker state.
+
+        Args:
+            circuit_name: Name of the circuit breaker
+            state: State value (0=closed, 1=half-open, 2=open)
+        """
+        self.circuit_breaker_state.labels(circuit_name=circuit_name).set(state)
+
+    def record_circuit_breaker_trip(
+        self,
+        circuit_name: str,
+    ) -> None:
+        """
+        Record a circuit breaker trip event.
+
+        Args:
+            circuit_name: Name of the circuit breaker
+        """
+        self.circuit_breaker_trips_total.labels(circuit_name=circuit_name).inc()
 
     def record_request(
         self,
