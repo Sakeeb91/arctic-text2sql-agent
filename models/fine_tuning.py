@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import torch
 from transformers import (
@@ -21,9 +21,11 @@ from transformers import (
 from app.config import get_settings
 from app.exceptions import FineTuningException
 from app.logging_config import get_logger
-from db.examples import ExampleRecord, ExampleStore, get_example_store
-from db.feedback import FeedbackRecord, FeedbackStatus, FeedbackStore, get_feedback_store
 from models.versioning import ModelVersion, get_model_version_manager
+
+if TYPE_CHECKING:
+    from db.examples import ExampleRecord, ExampleStore
+    from db.feedback import FeedbackRecord, FeedbackStore
 
 logger = get_logger(__name__)
 
@@ -108,6 +110,8 @@ class FineTuningPipeline:
         examples.extend([self._from_example(record) for record in stored_examples])
 
         if include_feedback:
+            from db.feedback import FeedbackStatus
+
             feedback_entries = await feedback_store.list_feedback(
                 status=FeedbackStatus.VERIFIED,
                 limit=max_examples,
@@ -294,11 +298,15 @@ class FineTuningPipeline:
 
     async def _get_example_store(self) -> ExampleStore:
         if self._example_store is None:
+            from db.examples import get_example_store
+
             self._example_store = await get_example_store()
         return self._example_store
 
     async def _get_feedback_store(self) -> FeedbackStore:
         if self._feedback_store is None:
+            from db.feedback import get_feedback_store
+
             self._feedback_store = await get_feedback_store()
         return self._feedback_store
 
