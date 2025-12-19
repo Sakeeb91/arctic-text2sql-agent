@@ -384,6 +384,65 @@ class CacheSettings(BaseSettings):
     )
 
 
+class MultiDatabaseSettings(BaseSettings):
+    """Multi-database registry configuration (Issue #14)."""
+
+    model_config = SettingsConfigDict(env_prefix="MULTIDB_", extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable multi-database support",
+    )
+    max_databases: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of registered databases",
+    )
+    default_pool_size: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Default connection pool size for new databases",
+    )
+    default_max_overflow: int = Field(
+        default=10,
+        ge=0,
+        le=50,
+        description="Default max overflow connections for new databases",
+    )
+    default_pool_timeout: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="Default connection timeout for new databases",
+    )
+    health_check_interval: int = Field(
+        default=60,
+        ge=10,
+        le=3600,
+        description="Interval between health checks in seconds",
+    )
+    health_check_timeout: int = Field(
+        default=5,
+        ge=1,
+        le=30,
+        description="Health check query timeout in seconds",
+    )
+    require_connection_test: bool = Field(
+        default=True,
+        description="Test connection before registering a database",
+    )
+    allow_mutations: bool = Field(
+        default=False,
+        description="Allow INSERT/UPDATE/DELETE queries by default",
+    )
+    connection_string_encryption: bool = Field(
+        default=False,
+        description="Encrypt stored connection strings (requires SECRET_KEY)",
+    )
+
+
 class Settings(BaseSettings):
     """
     Main application settings aggregating all configuration sections.
@@ -412,6 +471,7 @@ class Settings(BaseSettings):
     resilience: ResilienceSettings = Field(default_factory=ResilienceSettings)
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
+    multi_database: MultiDatabaseSettings = Field(default_factory=MultiDatabaseSettings)
 
 
 @lru_cache
