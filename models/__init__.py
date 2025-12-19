@@ -40,6 +40,12 @@ from models.prompts import (
     format_schema_for_prompt,
     get_prompt_template,
 )
+from models.fine_tuning import (
+    FineTuningExample,
+    FineTuningPipeline,
+    get_fine_tuning_pipeline,
+    reset_fine_tuning_pipeline,
+)
 from models.versioning import (
     ModelVersion,
     ModelVersionManager,
@@ -73,6 +79,11 @@ __all__ = [
     "build_prompt",
     "get_prompt_template",
     "format_schema_for_prompt",
+    # Fine-tuning (Issue #16)
+    "FineTuningExample",
+    "FineTuningPipeline",
+    "get_fine_tuning_pipeline",
+    "reset_fine_tuning_pipeline",
     # Model versioning (Issue #16)
     "ModelVersion",
     "ModelVersionStatus",
