@@ -694,3 +694,135 @@ Health check:
 curl http://localhost:8000/api/v1/databases/analytics/health
 curl http://localhost:8000/api/v1/databases/health/all
 ```
+
+## Query Explanation & Visualization (Issue #15)
+
+The application provides natural language explanations of SQL queries, complexity analysis, and visualizations.
+
+### Features
+
+- **Natural Language Explanations**: Human-readable descriptions of SQL queries
+- **Step-by-Step Breakdown**: Detailed breakdown of each SQL clause
+- **Complexity Analysis**: Scoring and metrics for query complexity
+- **Optimization Hints**: Suggestions for query improvement
+- **Query Visualization**: ASCII, JSON, HTML, and Mermaid diagram formats
+
+### Environment Variables
+
+```bash
+# Explanation settings
+EXPLAIN_ENABLED=true               # Enable explanation feature
+EXPLAIN_CACHE_EXPLANATIONS=true    # Cache generated explanations
+EXPLAIN_CACHE_TTL=3600             # Cache TTL in seconds
+EXPLAIN_MAX_SQL_LENGTH=10000       # Maximum SQL length to explain
+EXPLAIN_INCLUDE_COMPLEXITY=true    # Include complexity analysis
+EXPLAIN_INCLUDE_OPTIMIZATION_HINTS=true  # Include optimization suggestions
+EXPLAIN_VISUALIZATION_FORMAT=ascii # Default visualization format
+EXPLAIN_MAX_DEPTH=10               # Maximum depth for query plans
+EXPLAIN_LLM_EXPLANATION=true       # Use LLM for natural language
+```
+
+### Using the Explanation Engine
+
+```python
+from app.explanations import get_explanation_engine, VisualizationFormat
+
+# Get the engine singleton
+engine = await get_explanation_engine()
+
+# Generate full explanation
+result = await engine.explain(
+    sql="SELECT u.name, COUNT(o.id) as order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.status = 'active' GROUP BY u.id, u.name HAVING COUNT(o.id) > 5 ORDER BY order_count DESC LIMIT 10",
+    database_id="my_database",
+    include_visualization=True,
+    include_optimization_hints=True,
+    visualization_format=VisualizationFormat.ASCII,
+)
+
+# Access explanation components
+print(result.explanation.summary)
+print(result.complexity.level)  # simple, moderate, complex, very_complex
+print(result.complexity.score)  # 0.0 - 1.0
+
+# Iterate over breakdown steps
+for step in result.breakdown.steps:
+    print(f"{step.step_number}: {step.clause_type} - {step.description}")
+
+# Check optimization hints
+for hint in result.optimization_hints:
+    print(f"[{hint.severity}] {hint.title}: {hint.description}")
+
+# Get visualization
+if result.visualization:
+    print(result.visualization.content)
+```
+
+### Complexity Levels
+
+| Level | Score Range | Description |
+|-------|-------------|-------------|
+| simple | 0.00 - 0.25 | Basic queries with single table |
+| moderate | 0.25 - 0.50 | Queries with joins or aggregations |
+| complex | 0.50 - 0.75 | Multiple joins, subqueries |
+| very_complex | 0.75 - 1.00 | CTEs, window functions, nested queries |
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/explain` | Generate SQL explanation |
+| `POST /api/v1/visualize` | Generate query visualization |
+| `GET /api/v1/explain/{query_id}` | Retrieve cached explanation |
+| `POST /api/v1/explain/batch` | Batch explain multiple queries |
+
+### API Usage
+
+Explain a SQL query:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/explain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sql": "SELECT * FROM users WHERE status = '\''active'\''",
+    "include_visualization": true,
+    "include_optimization_hints": true,
+    "visualization_format": "ascii"
+  }'
+```
+
+Visualize query structure:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/visualize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sql": "SELECT u.name FROM users u JOIN orders o ON u.id = o.user_id",
+    "format": "mermaid"
+  }'
+```
+
+Batch explain queries:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/explain/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queries": [
+      "SELECT * FROM users",
+      "SELECT COUNT(*) FROM orders GROUP BY status"
+    ]
+  }'
+```
+
+### Module Structure
+
+```
+app/explanations/           # Explanation module
+├── __init__.py            # Module exports
+├── models.py              # Data models (Pydantic + dataclasses)
+├── parsers.py             # SQL parsing utilities
+├── complexity.py          # Complexity analysis
+├── formatters.py          # Output formatters (text, JSON, HTML, Markdown)
+├── visualizers.py         # Query visualization (ASCII, Mermaid, JSON)
+└── engine.py              # Main ExplanationEngine orchestrator
+```
