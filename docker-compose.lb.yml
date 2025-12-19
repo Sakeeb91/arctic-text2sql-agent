@@ -1,0 +1,95 @@
+# Arctic Text2SQL - Load Balancer Configuration
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.lb.yml up -d
+#
+# This file adds an Nginx load balancer for production deployments.
+# Includes SSL termination, health checks, and request routing.
+
+version: "3.8"
+
+services:
+  # ==========================================================================
+  # Nginx Load Balancer
+  # ==========================================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: arctic-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Nginx configuration
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      # SSL certificates (mount your certs here)
+      - ./deploy/nginx/ssl:/etc/nginx/ssl:ro
+      # Logs
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - default
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    labels:
+      - "service=nginx"
+      - "role=load-balancer"
+
+  # ==========================================================================
+  # API Services (Multiple Instances)
+  # ==========================================================================
+  # Override the default api service to support scaling
+  api:
+    # Remove container_name to allow multiple instances
+    container_name: ""
+    # Don't expose ports directly (nginx handles this)
+    ports: []
+    deploy:
+      mode: replicated
+      replicas: ${API_REPLICAS:-2}
+      endpoint_mode: dnsrr  # DNS round-robin for internal resolution
+
+  # ==========================================================================
+  # Named API Instances (Alternative to Swarm mode)
+  # Uncomment these for non-Swarm deployments
+  # ==========================================================================
+  # api-1:
+  #   extends:
+  #     service: api
+  #   container_name: arctic-api-1
+  #   environment:
+  #     - INSTANCE_ID=1
+  #
+  # api-2:
+  #   extends:
+  #     service: api
+  #   container_name: arctic-api-2
+  #   environment:
+  #     - INSTANCE_ID=2
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  nginx-logs:
+    name: arctic-nginx-logs
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: arctic-text2sql-network
