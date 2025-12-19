@@ -25,6 +25,9 @@ from app.monitoring.middleware import MetricsMiddleware
 from app.monitoring.trace_middleware import TraceContextMiddleware
 from app.routes import router
 from app.routes_databases import router as databases_router
+from app.routes_examples import router as examples_router
+from app.routes_feedback import router as feedback_router
+from app.routes_models import router as models_router
 from app.security.rate_limiting import setup_rate_limiting
 from db.connection import close_database, get_database
 from db.registry import close_database_registry, get_database_registry
@@ -257,6 +260,18 @@ setup_rate_limiting(app)
 
 # Include API routes
 app.include_router(router)
+
+# Issue #16: Include few-shot example routes
+if settings.few_shot.enabled:
+    app.include_router(examples_router)
+
+# Issue #16: Include feedback routes
+if settings.feedback.enabled:
+    app.include_router(feedback_router)
+
+# Issue #16: Include model versioning routes
+if settings.model_versioning.enabled:
+    app.include_router(models_router)
 
 # Issue #14: Include database management routes
 if settings.multi_database.enabled:
