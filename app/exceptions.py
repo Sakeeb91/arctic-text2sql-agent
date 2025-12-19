@@ -542,3 +542,110 @@ class CircuitBreakerOpenException(APIException):
             status_code=503,
             details=error_details,
         )
+
+
+# =============================================================================
+# Multi-Database Exceptions (Issue #14)
+# =============================================================================
+
+
+class DatabaseRegistryException(DatabaseException):
+    """Base exception for database registry operations."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "DATABASE_REGISTRY_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code, status_code, details)
+
+
+class DatabaseAlreadyExistsException(DatabaseRegistryException):
+    """Database with given ID already registered."""
+
+    def __init__(
+        self,
+        database_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Database already registered: {database_id}",
+            error_code="DATABASE_ALREADY_EXISTS",
+            status_code=409,
+            details=details or {"database_id": database_id},
+        )
+
+
+class DatabaseNotRegisteredException(DatabaseRegistryException):
+    """Database not found in registry."""
+
+    def __init__(
+        self,
+        database_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Database not registered: {database_id}",
+            error_code="DATABASE_NOT_REGISTERED",
+            status_code=404,
+            details=details or {"database_id": database_id},
+        )
+
+
+class UnsupportedDialectException(DatabaseRegistryException):
+    """Database dialect is not supported."""
+
+    def __init__(
+        self,
+        dialect: str,
+        supported_dialects: list[str] | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        error_details["dialect"] = dialect
+        if supported_dialects:
+            error_details["supported_dialects"] = supported_dialects
+        super().__init__(
+            message=f"Unsupported database dialect: {dialect}",
+            error_code="UNSUPPORTED_DIALECT",
+            status_code=400,
+            details=error_details,
+        )
+
+
+class DatabaseHealthCheckException(DatabaseRegistryException):
+    """Database health check failed."""
+
+    def __init__(
+        self,
+        database_id: str,
+        reason: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        message = f"Health check failed for database: {database_id}"
+        if reason:
+            message += f" - {reason}"
+        super().__init__(
+            message=message,
+            error_code="DATABASE_HEALTH_CHECK_FAILED",
+            status_code=503,
+            details=details or {"database_id": database_id},
+        )
+
+
+class InvalidConnectionStringException(DatabaseRegistryException):
+    """Connection string format is invalid."""
+
+    def __init__(
+        self,
+        message: str = "Invalid database connection string",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code="INVALID_CONNECTION_STRING",
+            status_code=400,
+            details=details,
+        )
