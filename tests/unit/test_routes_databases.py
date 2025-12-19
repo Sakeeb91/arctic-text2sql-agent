@@ -136,9 +136,12 @@ class TestRegisterDatabaseEndpoint:
 
         mock_registry.register_database = AsyncMock(return_value=mock_registered)
 
-        with patch(
-            "app.routes_databases.get_database_registry", return_value=mock_registry
-        ), patch("app.routes_databases.get_settings", return_value=mock_settings):
+        with (
+            patch(
+                "app.routes_databases.get_database_registry", return_value=mock_registry
+            ),
+            patch("app.routes_databases.get_settings", return_value=mock_settings),
+        ):
             response = client.post(
                 "/api/v1/databases",
                 json={
@@ -162,9 +165,12 @@ class TestRegisterDatabaseEndpoint:
             side_effect=DatabaseAlreadyExistsException("test_db")
         )
 
-        with patch(
-            "app.routes_databases.get_database_registry", return_value=mock_registry
-        ), patch("app.routes_databases.get_settings", return_value=mock_settings):
+        with (
+            patch(
+                "app.routes_databases.get_database_registry", return_value=mock_registry
+            ),
+            patch("app.routes_databases.get_settings", return_value=mock_settings),
+        ):
             response = client.post(
                 "/api/v1/databases",
                 json={
