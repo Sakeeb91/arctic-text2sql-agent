@@ -450,9 +450,11 @@ class TestDatabaseContextResolution:
         registry.get_database.return_value = registered
         registry.session.return_value = "session_ctx"
 
-        with patch("app.agent.engine.get_settings", return_value=mock_settings):
-            with patch("app.agent.engine.get_database_registry", return_value=registry):
-                context = await resolve_database_context(mock_db_manager, "analytics")
+        with (
+            patch("app.agent.engine.get_settings", return_value=mock_settings),
+            patch("app.agent.engine.get_database_registry", return_value=registry),
+        ):
+            context = await resolve_database_context(mock_db_manager, "analytics")
 
         assert context.database_id == "analytics"
         assert context.dialect == "postgresql"

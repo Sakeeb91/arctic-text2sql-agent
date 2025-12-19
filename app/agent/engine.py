@@ -83,10 +83,7 @@ def _render_prompt(messages: list[ChatMessage | dict[str, Any]]) -> str:
 
     for message in cleaned:
         role = message.get("role")
-        if hasattr(role, "value"):
-            role_text = role.value
-        else:
-            role_text = str(role)
+        role_text = role.value if hasattr(role, "value") else str(role)
         content = message.get("content") or ""
         rendered.append(f"{role_text}: {content}")
 
