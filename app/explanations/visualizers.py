@@ -471,14 +471,19 @@ def get_visualizer(
     if isinstance(format_type, str):
         format_type = VisualizationFormat(format_type.lower())
 
-    visualizers: dict[VisualizationFormat, Any] = {
+    visualizers: dict[
+        VisualizationFormat, ASCIITreeVisualizer | MermaidVisualizer | JSONVisualizer
+    ] = {
         VisualizationFormat.ASCII: ASCIITreeVisualizer(),
         VisualizationFormat.MERMAID: MermaidVisualizer(),
         VisualizationFormat.JSON: JSONVisualizer(),
         VisualizationFormat.HTML: ASCIITreeVisualizer(),  # HTML uses ASCII wrapped
     }
 
-    return visualizers.get(format_type, ASCIITreeVisualizer())
+    result = visualizers.get(format_type)
+    if result is None:
+        return ASCIITreeVisualizer()
+    return result
 
 
 def visualize_query(

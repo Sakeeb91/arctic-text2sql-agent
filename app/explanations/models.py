@@ -314,8 +314,8 @@ class SQLExplanation(BaseModel):
     aggregations: list[str] = Field(
         default_factory=list, description="Aggregations performed"
     )
-    sorting: str | None = Field(None, description="How results are sorted")
-    limitations: str | None = Field(None, description="Any row limits applied")
+    sorting: str | None = Field(default=None, description="How results are sorted")
+    limitations: str | None = Field(default=None, description="Any row limits applied")
 
 
 class ComplexityAnalysis(BaseModel):
@@ -362,8 +362,8 @@ class QueryVisualization(BaseModel):
 
     format: str = Field(..., description="Visualization format")
     content: str = Field(..., description="Visualization content")
-    width: int | None = Field(None, description="Width for text visualizations")
-    height: int | None = Field(None, description="Height for text visualizations")
+    width: int | None = Field(default=None, description="Width for text visualizations")
+    height: int | None = Field(default=None, description="Height for text visualizations")
 
 
 class QueryExplanationResult(BaseModel):
@@ -378,10 +378,10 @@ class QueryExplanationResult(BaseModel):
         default_factory=list, description="Optimization suggestions"
     )
     execution_plan: ExecutionPlan | None = Field(
-        None, description="Execution plan if available"
+        default=None, description="Execution plan if available"
     )
     visualization: QueryVisualization | None = Field(
-        None, description="Query visualization"
+        default=None, description="Query visualization"
     )
     created_at: datetime = Field(
         default_factory=datetime.now, description="When explanation was created"
