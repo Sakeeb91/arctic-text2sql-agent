@@ -180,7 +180,7 @@ async def check_database_connection(
                 conn.execute(text("SELECT 1")),
                 timeout=timeout,
             )
-            await result.close()
+            result.close()
 
         await engine.dispose()
 

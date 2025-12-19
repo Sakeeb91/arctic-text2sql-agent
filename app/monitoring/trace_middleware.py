@@ -6,7 +6,8 @@ across HTTP requests and integrating with OpenTelemetry.
 """
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -53,7 +54,7 @@ class TraceContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self,
         request: Request,
-        call_next: Callable[[Request], Response],
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """
         Process request with trace context propagation.
@@ -213,7 +214,7 @@ class TraceContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def setup_trace_middleware(app: ASGIApp) -> None:
+def setup_trace_middleware(app: Any) -> None:
     """
     Setup trace context middleware on a FastAPI application.
 

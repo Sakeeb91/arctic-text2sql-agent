@@ -985,12 +985,12 @@ class MetricsRegistry:
         Returns:
             Prometheus text format metrics
         """
-        return generate_latest(self._registry)
+        return generate_latest(self._registry)  # type: ignore[no-any-return]
 
     @property
     def content_type(self) -> str:
         """Get Prometheus content type for HTTP responses."""
-        return CONTENT_TYPE_LATEST
+        return CONTENT_TYPE_LATEST  # type: ignore[no-any-return]
 
     def get_all_metrics(self) -> dict[str, Any]:
         """

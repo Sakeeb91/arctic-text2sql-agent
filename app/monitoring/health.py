@@ -107,7 +107,7 @@ class HealthChecker:
                         message=str(check),
                     )
                 )
-            else:
+            elif isinstance(check, ComponentHealth):
                 components.append(check)
 
         # Determine overall status

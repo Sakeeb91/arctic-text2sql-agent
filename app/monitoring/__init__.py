@@ -9,6 +9,8 @@ This module provides comprehensive monitoring capabilities including:
 - Alerting integration
 """
 
+from typing import Any
+
 from app.monitoring.endpoints import (
     monitoring_router,
     setup_monitoring_routes,
@@ -67,7 +69,7 @@ __all__ = [
 ]
 
 
-def setup_monitoring(app) -> None:
+def setup_monitoring(app: Any) -> None:
     """
     Setup complete monitoring stack on a FastAPI application.
 

@@ -82,7 +82,9 @@ class TracingManager:
             )
 
             # Add span processor
-            self._provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+            self._provider.add_span_processor(  # type: ignore[attr-defined]
+                BatchSpanProcessor(otlp_exporter)
+            )
 
             # Set as global tracer provider
             trace.set_tracer_provider(self._provider)
@@ -147,7 +149,7 @@ class TracingManager:
 
         span_kind = kind_map.get(kind, SpanKind.INTERNAL)
 
-        return self._tracer.start_as_current_span(
+        return self._tracer.start_as_current_span(  # type: ignore[attr-defined]
             name,
             attributes=attributes or {},
             kind=span_kind,
@@ -283,7 +285,7 @@ def get_tracing_manager() -> TracingManager:
 def trace_function(
     name: str | None = None,
     attributes: dict[str, Any] | None = None,
-):
+) -> Any:
     """
     Decorator to trace a function.
 
@@ -303,11 +305,11 @@ def trace_function(
     import asyncio
     import functools
 
-    def decorator(func):
+    def decorator(func: Any) -> Any:
         span_name = name or func.__qualname__
 
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             manager = get_tracing_manager()
             with manager.create_span(span_name, attributes=attributes):
                 try:
@@ -317,7 +319,7 @@ def trace_function(
                     raise
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             manager = get_tracing_manager()
             with manager.create_span(span_name, attributes=attributes):
                 try:

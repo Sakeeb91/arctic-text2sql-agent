@@ -7,7 +7,8 @@ HTTP request metrics without modifying individual endpoints.
 
 import contextlib
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -61,7 +62,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self,
         request: Request,
-        call_next: Callable[[Request], Response],
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """
         Process request and collect metrics.
@@ -183,7 +184,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
 
 def setup_metrics_middleware(
-    app: ASGIApp,
+    app: Any,
     exclude_paths: list[str] | None = None,
 ) -> None:
     """

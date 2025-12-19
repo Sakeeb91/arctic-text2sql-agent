@@ -237,7 +237,7 @@ class ModelInstrumentor:
 def trace_model_operation(
     operation: str = "generate",
     model_name: str | None = None,
-):
+) -> Any:
     """
     Decorator for tracing model operations.
 
@@ -251,15 +251,15 @@ def trace_model_operation(
             ...
     """
 
-    def decorator(func):
+    def decorator(func: Any) -> Any:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             # Try to get model name from self
             name = model_name
             if not name and args:
-                self = args[0]
-                if hasattr(self, "model_name"):
-                    name = self.model_name
+                instance = args[0]
+                if hasattr(instance, "model_name"):
+                    name = instance.model_name
             name = name or "unknown"
 
             instrumentor = ModelInstrumentor(name)
@@ -267,13 +267,13 @@ def trace_model_operation(
                 return await func(*args, **kwargs)
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             # Try to get model name from self
             name = model_name
             if not name and args:
-                self = args[0]
-                if hasattr(self, "model_name"):
-                    name = self.model_name
+                instance = args[0]
+                if hasattr(instance, "model_name"):
+                    name = instance.model_name
             name = name or "unknown"
 
             instrumentor = ModelInstrumentor(name)

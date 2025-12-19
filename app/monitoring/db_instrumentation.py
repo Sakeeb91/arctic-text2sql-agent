@@ -275,9 +275,9 @@ class DatabaseInstrumentor:
         if pool:
             self.metrics.set_db_pool_metrics(
                 database_id=self.database_id,
-                pool_size=pool.size(),
-                checked_out=pool.checkedout(),
-                overflow=pool.overflow(),
+                pool_size=pool.size(),  # type: ignore[attr-defined]
+                checked_out=pool.checkedout(),  # type: ignore[attr-defined]
+                overflow=pool.overflow(),  # type: ignore[attr-defined]
             )
 
 

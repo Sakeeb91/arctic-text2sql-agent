@@ -5,6 +5,8 @@ This module provides HTTP endpoints for metrics scraping and
 health check queries.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 
@@ -119,7 +121,7 @@ async def dependency_health() -> JSONResponse:
     )
 
 
-def setup_monitoring_routes(app) -> None:
+def setup_monitoring_routes(app: Any) -> None:
     """
     Setup monitoring routes on a FastAPI application.
 
