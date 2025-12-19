@@ -652,6 +652,127 @@ class InvalidConnectionStringException(DatabaseRegistryException):
 
 
 # =============================================================================
+# Few-Shot, Feedback, and Fine-Tuning Exceptions (Issue #16)
+# =============================================================================
+
+
+class FewShotException(Text2SQLException):
+    """Base exception for few-shot learning errors."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "FEW_SHOT_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code, status_code, details)
+
+
+class ExampleStoreException(FewShotException):
+    """Example store operation failed."""
+
+    def __init__(
+        self,
+        message: str = "Example store operation failed",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code="EXAMPLE_STORE_ERROR",
+            status_code=500,
+            details=details,
+        )
+
+
+class ExampleNotFoundException(FewShotException):
+    """Example not found in repository."""
+
+    def __init__(
+        self,
+        example_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Example not found: {example_id}",
+            error_code="EXAMPLE_NOT_FOUND",
+            status_code=404,
+            details=details or {"example_id": example_id},
+        )
+
+
+class FeedbackException(Text2SQLException):
+    """Base exception for feedback collection errors."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "FEEDBACK_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code, status_code, details)
+
+
+class FeedbackNotFoundException(FeedbackException):
+    """Feedback entry not found."""
+
+    def __init__(
+        self,
+        feedback_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Feedback not found: {feedback_id}",
+            error_code="FEEDBACK_NOT_FOUND",
+            status_code=404,
+            details=details or {"feedback_id": feedback_id},
+        )
+
+
+class FineTuningException(Text2SQLException):
+    """Fine-tuning pipeline error."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "FINE_TUNING_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code, status_code, details)
+
+
+class ModelVersioningException(Text2SQLException):
+    """Model versioning error."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "MODEL_VERSIONING_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code, status_code, details)
+
+
+class ModelVersionNotFoundException(ModelVersioningException):
+    """Model version not found."""
+
+    def __init__(
+        self,
+        version_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Model version not found: {version_id}",
+            error_code="MODEL_VERSION_NOT_FOUND",
+            status_code=404,
+            details=details or {"version_id": version_id},
+        )
+
+
+# =============================================================================
 # Explanation Exceptions (Issue #15)
 # =============================================================================
 
