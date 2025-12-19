@@ -1,0 +1,43 @@
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: arctic-text2sql-api
+  namespace: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: api
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: api
+---
+# Headless service for pod-to-pod communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: arctic-text2sql-api-headless
+  namespace: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  selector:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: api
