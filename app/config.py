@@ -384,6 +384,59 @@ class CacheSettings(BaseSettings):
     )
 
 
+class ExplanationSettings(BaseSettings):
+    """Query explanation and visualization configuration (Issue #15)."""
+
+    model_config = SettingsConfigDict(env_prefix="EXPLAIN_", extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable query explanation feature",
+    )
+    cache_explanations: bool = Field(
+        default=True,
+        description="Cache generated explanations",
+    )
+    cache_ttl: int = Field(
+        default=3600,
+        ge=0,
+        le=86400,
+        description="Explanation cache TTL in seconds",
+    )
+    max_sql_length: int = Field(
+        default=10000,
+        ge=100,
+        le=100000,
+        description="Maximum SQL length to explain",
+    )
+    include_complexity: bool = Field(
+        default=True,
+        description="Include complexity analysis in explanations",
+    )
+    include_optimization_hints: bool = Field(
+        default=True,
+        description="Include optimization suggestions",
+    )
+    visualization_format: Literal["ascii", "json", "html"] = Field(
+        default="ascii",
+        description="Default visualization format",
+    )
+    max_depth: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Maximum depth for query plan visualization",
+    )
+    enable_execution_plan: bool = Field(
+        default=False,
+        description="Enable EXPLAIN ANALYZE for execution plans (requires DB access)",
+    )
+    llm_explanation: bool = Field(
+        default=True,
+        description="Use LLM to generate natural language explanations",
+    )
+
+
 class MultiDatabaseSettings(BaseSettings):
     """Multi-database registry configuration (Issue #14)."""
 
@@ -472,6 +525,7 @@ class Settings(BaseSettings):
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
     multi_database: MultiDatabaseSettings = Field(default_factory=MultiDatabaseSettings)
+    explanation: ExplanationSettings = Field(default_factory=ExplanationSettings)
 
 
 @lru_cache
