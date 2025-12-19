@@ -24,8 +24,10 @@ from app.monitoring import (
 from app.monitoring.middleware import MetricsMiddleware
 from app.monitoring.trace_middleware import TraceContextMiddleware
 from app.routes import router
+from app.routes_databases import router as databases_router
 from app.security.rate_limiting import setup_rate_limiting
 from db.connection import close_database, get_database
+from db.registry import close_database_registry, get_database_registry
 from models.loader import get_model_loader, unload_model
 
 # Initialize settings
@@ -72,6 +74,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("database_initialization_failed", error=str(e))
         # Continue startup even if database fails - allows health checks to report status
         pass
+
+    # Issue #14: Initialize multi-database registry
+    if settings.multi_database.enabled:
+        logger.info("database_registry_initializing")
+        try:
+            registry = await get_database_registry()
+            logger.info(
+                "database_registry_initialized",
+                database_count=registry.database_count,
+            )
+        except Exception as e:
+            logger.warning(
+                "database_registry_initialization_failed",
+                error=str(e),
+            )
 
     # Load model (Phase 1.3: HuggingFace Model Integration)
     model_loaded = False
@@ -145,6 +162,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("application_shutting_down")
 
+    # Issue #14: Close database registry
+    if settings.multi_database.enabled:
+        logger.info("database_registry_closing")
+        await close_database_registry()
+        logger.info("database_registry_closed")
+
     # Cleanup resources
     logger.info("database_closing")
     await close_database()
@@ -181,10 +204,11 @@ app = FastAPI(
     - **Output Inspection**: Checks if results actually answer the question
     - **Transparent Reasoning**: See agent's thought process for every query
     - **Tool-Based Architecture**: Modular, extensible design
+    - **Multi-Database Support**: Connect to multiple databases simultaneously
 
     ## Quick Start
 
-    1. Register a database schema: `POST /api/v1/schema/register`
+    1. Register a database: `POST /api/v1/databases`
     2. Generate SQL: `POST /api/v1/query`
     3. View reasoning: `GET /api/v1/agent/reasoning/{query_id}`
     """,
@@ -233,6 +257,10 @@ setup_rate_limiting(app)
 
 # Include API routes
 app.include_router(router)
+
+# Issue #14: Include database management routes
+if settings.multi_database.enabled:
+    app.include_router(databases_router)
 
 # Issue #9: Include monitoring routes
 if settings.monitoring.enable_metrics:
