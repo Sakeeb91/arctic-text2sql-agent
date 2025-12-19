@@ -9,13 +9,15 @@ import pytest
 
 pytest.importorskip("smolagents")
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.agent.engine import (
     AgentText2SQL,
+    execute_sql_with_context,
     get_agent_engine,
+    resolve_database_context,
     reset_agent_engine,
 )
 from app.agent.models import (
@@ -420,6 +422,86 @@ class TestGlobalEngineManagement:
 
         # Clean up
         reset_agent_engine()
+
+# =============================================================================
+# Test Database Context Resolution
+# =============================================================================
+
+
+class TestDatabaseContextResolution:
+    """Tests for database context resolution."""
+
+    @pytest.mark.asyncio
+    async def test_resolve_database_context_uses_registry(self) -> None:
+        """Test registry-based database resolution when enabled."""
+        mock_db_manager = MagicMock()
+        mock_db_manager.engine = MagicMock()
+        mock_db_manager.dialect = "sqlite"
+
+        mock_settings = MagicMock()
+        mock_settings.multi_database.enabled = True
+
+        registered = MagicMock()
+        registered.engine = MagicMock()
+        registered.config.dialect.value = "postgresql"
+
+        registry = MagicMock()
+        registry.get_database.return_value = registered
+        registry.session.return_value = "session_ctx"
+
+        with patch("app.agent.engine.get_settings", return_value=mock_settings):
+            with patch(
+                "app.agent.engine.get_database_registry", return_value=registry
+            ):
+                context = await resolve_database_context(mock_db_manager, "analytics")
+
+        assert context.database_id == "analytics"
+        assert context.dialect == "postgresql"
+        assert context.session_provider() == "session_ctx"
+
+
+# =============================================================================
+# Test Query Execution Helper
+# =============================================================================
+
+
+class TestExecuteSqlWithContext:
+    """Tests for execute_sql_with_context helper."""
+
+    @pytest.mark.asyncio
+    async def test_execute_sql_with_context_returns_result(self) -> None:
+        """Test query execution helper returns QueryResult."""
+        from contextlib import asynccontextmanager
+        from db.executor import QueryResult
+
+        @asynccontextmanager
+        async def session_provider():
+            yield MagicMock()
+
+        context = MagicMock()
+        context.session_provider = session_provider
+
+        expected = QueryResult(
+            success=True,
+            sql="SELECT 1",
+            rows=[{"value": 1}],
+            row_count=1,
+        )
+
+        executor = MagicMock()
+        executor.execute = AsyncMock(return_value=expected)
+
+        with patch("app.agent.engine.SafeQueryExecutor", return_value=executor):
+            result = await execute_sql_with_context(
+                db_context=context,
+                sql="SELECT 1",
+                max_rows=10,
+                timeout_seconds=30,
+                allow_mutations=False,
+            )
+
+        assert result.success is True
+        assert result.row_count == 1
 
 
 # =============================================================================

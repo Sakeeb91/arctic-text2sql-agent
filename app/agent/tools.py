@@ -10,14 +10,33 @@ Tools:
 - schema_inspector: Inspect database schema
 """
 
+import asyncio
 import re
-from typing import Any
+import time
+from collections.abc import Callable
+from typing import Any, Coroutine, TypeVar
 
 from smolagents import tool
 
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+T = TypeVar("T")
+
+
+def _run_coroutine_sync(coro: Coroutine[Any, Any, T]) -> T:
+    """Run an async coroutine from sync tool code."""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is None or loop.is_running():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    return loop.run_until_complete(coro)
 
 
 # =============================================================================
@@ -26,9 +45,12 @@ logger = get_logger(__name__)
 
 
 def create_sql_executor_tool(
-    db_manager: Any,
+    session_provider: Callable[[], Any],
     schema_description: str,
     max_rows: int = 100,
+    execution_timeout: int = 30,
+    allow_mutations: bool = False,
+    database_id: str | None = None,
 ) -> Any:
     """
     Create a SQL executor tool with embedded schema description.
@@ -37,9 +59,12 @@ def create_sql_executor_tool(
     agent knows what tables and columns are available.
 
     Args:
-        db_manager: Database manager for executing queries
+        session_provider: Async session provider for executing queries
         schema_description: Formatted schema description for the tool docstring
         max_rows: Maximum rows to return
+        execution_timeout: Query execution timeout in seconds
+        allow_mutations: Whether to allow mutation queries
+        database_id: Database identifier for logging/tracing
 
     Returns:
         A tool function for SQL execution
@@ -61,36 +86,34 @@ def create_sql_executor_tool(
 
         {schema_placeholder}
         """
-        import asyncio
-
         from db.executor import SafeQueryExecutor
+        from app.monitoring.tracing import get_tracing_manager
 
         logger.info(
             "sql_executor_tool_called",
             query_preview=query[:100] if query else "",
+            database_id=database_id,
         )
 
         try:
-            # Get or create event loop
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
             # Execute the query
-            async def execute_query() -> str:
-                async with db_manager.session() as session:
+            async def execute_query() -> tuple[str, int, list[str]]:
+                async with session_provider() as session:
                     executor = SafeQueryExecutor(
                         session=session,
-                        allow_mutations=False,
+                        allow_mutations=allow_mutations,
+                        timeout_seconds=execution_timeout,
                         max_rows=max_rows,
                     )
 
                     result = await executor.execute(query)
 
                     if not result.rows:
-                        return "Query executed successfully but returned no rows."
+                        return (
+                            "Query executed successfully but returned no rows.",
+                            result.row_count,
+                            result.warnings,
+                        )
 
                     # Format results as readable text
                     output_lines = [f"Query returned {result.row_count} rows:"]
@@ -114,13 +137,37 @@ def create_sql_executor_tool(
                     if result.warnings:
                         output_lines.append("Warnings: " + "; ".join(result.warnings))
 
-                    return "\n".join(output_lines)
+                    return "\n".join(output_lines), result.row_count, result.warnings
 
-            return loop.run_until_complete(execute_query())
+            start_time = time.perf_counter()
+            tracing = get_tracing_manager()
+            with tracing.create_span(
+                "agent.tool.sql_executor",
+                attributes={
+                    "db.database_id": database_id or "unknown",
+                    "db.operation": "execute",
+                },
+                kind="client",
+            ):
+                output, row_count, warnings = _run_coroutine_sync(execute_query())
+
+            logger.info(
+                "sql_executor_tool_completed",
+                database_id=database_id,
+                row_count=row_count,
+                warnings=len(warnings),
+                duration_ms=round((time.perf_counter() - start_time) * 1000, 2),
+            )
+            return output
 
         except Exception as e:
             error_msg = f"Error executing query: {e!s}"
-            logger.error("sql_executor_tool_error", error=str(e), query=query[:100])
+            logger.error(
+                "sql_executor_tool_error",
+                error=str(e),
+                query=query[:100],
+                database_id=database_id,
+            )
             return error_msg
 
     # Update the docstring with actual schema
@@ -235,12 +282,16 @@ def result_validator(results: str, original_question: str, sql_query: str) -> st
 # =============================================================================
 
 
-def create_schema_inspector_tool(db_manager: Any) -> Any:
+def create_schema_inspector_tool(
+    engine: Any,
+    database_id: str,
+) -> Any:
     """
     Create a schema inspector tool for looking up table details.
 
     Args:
-        db_manager: Database manager for schema introspection
+        engine: SQLAlchemy engine for schema introspection
+        database_id: Database identifier
 
     Returns:
         A tool function for schema inspection
@@ -260,24 +311,20 @@ def create_schema_inspector_tool(db_manager: Any) -> Any:
         Returns:
             Detailed schema information for the table, or error if not found.
         """
-        import asyncio
-
         from db.schema import SchemaIntrospector
+        from app.monitoring.tracing import get_tracing_manager
 
-        logger.info("schema_inspector_tool_called", table_name=table_name)
+        logger.info(
+            "schema_inspector_tool_called",
+            table_name=table_name,
+            database_id=database_id,
+        )
 
         try:
-            # Get or create event loop
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
             async def get_table_info() -> str:
-                introspector = SchemaIntrospector(db_manager.engine)
+                introspector = SchemaIntrospector(engine)
                 schema = await introspector.get_schema(
-                    database_id="default",
+                    database_id=database_id,
                     include_row_counts=False,
                 )
 
@@ -326,11 +373,24 @@ def create_schema_inspector_tool(db_manager: Any) -> Any:
 
                 return "\n".join(output_lines)
 
-            return loop.run_until_complete(get_table_info())
+            tracing = get_tracing_manager()
+            with tracing.create_span(
+                "agent.tool.schema_inspector",
+                attributes={
+                    "db.database_id": database_id,
+                    "db.table": table_name,
+                },
+            ):
+                return _run_coroutine_sync(get_table_info())
 
         except Exception as e:
             error_msg = f"Error inspecting table '{table_name}': {e!s}"
-            logger.error("schema_inspector_tool_error", error=str(e), table=table_name)
+            logger.error(
+                "schema_inspector_tool_error",
+                error=str(e),
+                table=table_name,
+                database_id=database_id,
+            )
             return error_msg
 
     return schema_inspector
@@ -345,6 +405,7 @@ def create_sql_generator_tool(
     model_loader: Any,
     schema_description: str,
     database_id: str | None = None,
+    dialect: str = "postgresql",
 ) -> Any:
     """
     Create a SQL generator tool using the local Text2SQL model.
@@ -376,24 +437,17 @@ def create_sql_generator_tool(
         Returns:
             Generated SQL query or error message.
         """
-        import asyncio
-
         from models.inference import InferenceEngine
         from models.prompts import build_prompt
+        from app.monitoring.tracing import get_tracing_manager
 
         logger.info(
             "sql_generator_tool_called",
             question_length=len(question),
+            database_id=database_id,
         )
 
         try:
-            # Get or create event loop
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
             async def generate_sql() -> str:
                 # Ensure model is loaded
                 if not model_loader.is_loaded:
@@ -416,7 +470,7 @@ def create_sql_generator_tool(
                     question=question,
                     schema=schema_description,
                     template_type="arctic",
-                    dialect="postgresql",
+                    dialect=dialect,
                     few_shot_examples=few_shot_examples,
                     use_default_examples=settings.few_shot.include_default_examples,
                 )
@@ -426,12 +480,27 @@ def create_sql_generator_tool(
                 result = await inference_engine.generate(prompt, extract_sql=True)
 
                 if result.sql:
-                    confidence_info = f" (confidence: {result.confidence:.2f})"
-                    return f"{result.sql}{confidence_info}"
+                    logger.info(
+                        "sql_generator_tool_completed",
+                        confidence=result.confidence,
+                        sql_length=len(result.sql),
+                        database_id=database_id,
+                    )
+                    return result.sql
                 else:
-                    return f"Could not extract SQL from model output: {result.generated_text[:200]}"
+                    return (
+                        "Could not extract SQL from model output: "
+                        f"{result.generated_text[:200]}"
+                    )
 
-            return loop.run_until_complete(generate_sql())
+            tracing = get_tracing_manager()
+            with tracing.create_span(
+                "agent.tool.sql_generator",
+                attributes={
+                    "db.database_id": database_id or "unknown",
+                },
+            ):
+                return _run_coroutine_sync(generate_sql())
 
         except Exception as e:
             error_msg = f"Error generating SQL: {e!s}"
