@@ -92,4 +92,4 @@ fakeredis>=2.21.0  # Redis mocking for tests (Issue #8)
 black==24.1.1
 ruff==0.2.1
 mypy==1.8.0
-pre-commit==3.6.0
+pre-commit==4.5.1
