@@ -1,0 +1,34 @@
+---
+# Persistent Volume Claim for HuggingFace model cache
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache-pvc
+  namespace: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteMany  # Allows multiple pods to share the cache
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard  # Adjust based on your cluster
+---
+# Persistent Volume Claim for application data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data-pvc
+  namespace: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
