@@ -1,0 +1,29 @@
+---
+# Kustomize base configuration
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: arctic-text2sql
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: arctic-text2sql
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - serviceaccount.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - pdb.yaml
+
+# Image configuration (can be overridden in overlays)
+images:
+  - name: ghcr.io/sakeeb91/arctic-text2sql-agent
+    newTag: latest
