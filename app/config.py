@@ -437,6 +437,148 @@ class ExplanationSettings(BaseSettings):
     )
 
 
+class FewShotSettings(BaseSettings):
+    """Few-shot learning configuration (Issue #16)."""
+
+    model_config = SettingsConfigDict(env_prefix="FEWSHOT_", extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable few-shot example retrieval for in-context learning",
+    )
+    max_examples: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum number of examples to include in prompts",
+    )
+    min_similarity: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity score for example inclusion",
+    )
+    embedding_strategy: Literal["hash", "model"] = Field(
+        default="hash",
+        description="Embedding strategy for semantic search (hash, model)",
+    )
+    embedding_dim: int = Field(
+        default=256,
+        ge=64,
+        le=2048,
+        description="Embedding dimensionality for hash strategy",
+    )
+    embedding_max_length: int = Field(
+        default=256,
+        ge=32,
+        le=2048,
+        description="Maximum token length for model-based embeddings",
+    )
+    include_default_examples: bool = Field(
+        default=False,
+        description="Include built-in few-shot examples alongside retrieved ones",
+    )
+    verified_only: bool = Field(
+        default=True,
+        description="Only use verified examples for retrieval",
+    )
+    use_on_first_attempt: bool = Field(
+        default=True,
+        description="Use few-shot examples on first generation attempt",
+    )
+    use_on_retry: bool = Field(
+        default=True,
+        description="Use few-shot examples on retry attempts",
+    )
+
+
+class FeedbackSettings(BaseSettings):
+    """Feedback collection configuration (Issue #16)."""
+
+    model_config = SettingsConfigDict(env_prefix="FEEDBACK_", extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable feedback collection endpoints",
+    )
+    auto_promote_to_examples: bool = Field(
+        default=False,
+        description="Automatically promote verified feedback into few-shot examples",
+    )
+    min_rating_for_promotion: int = Field(
+        default=4,
+        ge=1,
+        le=5,
+        description="Minimum rating required for auto-promotion",
+    )
+
+
+class FineTuningSettings(BaseSettings):
+    """Fine-tuning pipeline configuration (Issue #16)."""
+
+    model_config = SettingsConfigDict(env_prefix="FINETUNE_", extra="ignore")
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable fine-tuning pipeline utilities",
+    )
+    output_dir: str = Field(
+        default="data/fine_tuning",
+        description="Directory for fine-tuning datasets and outputs",
+    )
+    dataset_name: str = Field(
+        default="text2sql_finetune",
+        description="Dataset name for exported fine-tuning data",
+    )
+    max_examples: int = Field(
+        default=5000,
+        ge=0,
+        description="Maximum number of training examples to export",
+    )
+    include_feedback: bool = Field(
+        default=True,
+        description="Include verified feedback in fine-tuning data",
+    )
+    train_epochs: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Training epochs for fine-tuning runs",
+    )
+    batch_size: int = Field(
+        default=2,
+        ge=1,
+        le=32,
+        description="Batch size for fine-tuning runs",
+    )
+    learning_rate: float = Field(
+        default=2e-5,
+        gt=0.0,
+        description="Learning rate for fine-tuning runs",
+    )
+    max_seq_length: int = Field(
+        default=1024,
+        ge=128,
+        le=4096,
+        description="Maximum sequence length for fine-tuning",
+    )
+
+
+class ModelVersioningSettings(BaseSettings):
+    """Model versioning configuration (Issue #16)."""
+
+    model_config = SettingsConfigDict(env_prefix="MODEL_VERSION_", extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable model version registry",
+    )
+    active_version_id: str | None = Field(
+        default=None,
+        description="Active model version identifier to load",
+    )
+
+
 class MultiDatabaseSettings(BaseSettings):
     """Multi-database registry configuration (Issue #14)."""
 
@@ -524,6 +666,12 @@ class Settings(BaseSettings):
     resilience: ResilienceSettings = Field(default_factory=ResilienceSettings)
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
+    few_shot: FewShotSettings = Field(default_factory=FewShotSettings)
+    feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
+    fine_tuning: FineTuningSettings = Field(default_factory=FineTuningSettings)
+    model_versioning: ModelVersioningSettings = Field(
+        default_factory=ModelVersioningSettings
+    )
     multi_database: MultiDatabaseSettings = Field(default_factory=MultiDatabaseSettings)
     explanation: ExplanationSettings = Field(default_factory=ExplanationSettings)
 
