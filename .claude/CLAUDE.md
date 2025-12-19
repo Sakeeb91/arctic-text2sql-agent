@@ -447,3 +447,116 @@ Pre-configured alerts in `monitoring/prometheus/alerts.yml`:
 | DatabaseConnectionPoolExhausted | Pool > 90% for 5m | Warning |
 | LowCacheHitRate | Hit rate < 50% for 15m | Warning |
 | CircuitBreakerOpen | Circuit open for 1m | Critical |
+
+## Deployment Architecture (Issue #13)
+
+Production deployment architecture with horizontal scaling, high availability, and auto-scaling.
+
+### Architecture Components
+
+```
+deploy/
+├── nginx/                  # Nginx load balancer configuration
+│   ├── nginx.conf         # Main configuration
+│   ├── conf.d/
+│   │   ├── upstream.conf  # Backend server pools
+│   │   ├── ssl.conf       # TLS configuration
+│   │   ├── security.conf  # Rate limiting, security headers
+│   │   └── api.conf       # API routing rules
+│   ├── ssl/               # SSL certificates
+│   └── scripts/           # Certificate generation
+│
+├── postgres/               # PostgreSQL HA configuration
+│   ├── primary/           # Primary database config
+│   ├── replica/           # Replica database config
+│   └── scripts/           # Replication scripts
+│
+└── kubernetes/            # Kubernetes manifests
+    ├── base/              # Base kustomize resources
+    │   ├── deployment.yaml
+    │   ├── service.yaml
+    │   ├── ingress.yaml
+    │   ├── hpa.yaml
+    │   └── pdb.yaml
+    └── overlays/
+        ├── staging/       # Staging environment
+        └── production/    # Production environment
+```
+
+### Deployment Options
+
+```bash
+# Docker Compose - Development
+docker-compose up -d
+
+# Docker Compose - Production with load balancer
+docker-compose -f docker-compose.yml \
+               -f docker-compose.prod.yml \
+               -f docker-compose.lb.yml up -d
+
+# Docker Compose - Full HA (with database replication)
+docker-compose -f docker-compose.yml \
+               -f docker-compose.prod.yml \
+               -f docker-compose.lb.yml \
+               -f docker-compose.db-ha.yml up -d
+
+# Kubernetes - Staging
+kubectl apply -k deploy/kubernetes/overlays/staging
+
+# Kubernetes - Production
+kubectl apply -k deploy/kubernetes/overlays/production
+```
+
+### Auto-Scaling
+
+Horizontal Pod Autoscaler configuration:
+
+| Metric | Scale Up | Scale Down |
+|--------|----------|------------|
+| CPU | > 70% | < 30% |
+| Memory | > 75% | < 40% |
+| Min Replicas | 2 | - |
+| Max Replicas | 10 (staging) / 20 (prod) | - |
+
+### Database High Availability
+
+PostgreSQL streaming replication with auto-failover:
+
+```bash
+# Check replication status
+docker exec arctic-db-primary /deploy/postgres/scripts/check-replication.sh
+
+# Manual failover
+docker exec arctic-db-replica /deploy/postgres/scripts/promote-replica.sh
+```
+
+### Load Balancer
+
+Nginx with:
+- SSL/TLS termination
+- Rate limiting (10 req/s per IP)
+- Health checks
+- Upstream connection pooling
+
+### Runbooks
+
+Operational runbooks in `docs/runbooks/`:
+
+| Runbook | Purpose |
+|---------|---------|
+| `DEPLOYMENT.md` | Deploy, rollback procedures |
+| `SCALING.md` | Scale up/down operations |
+| `DATABASE.md` | Backup, restore, failover |
+| `INCIDENT_RESPONSE.md` | Incident handling |
+| `TROUBLESHOOTING.md` | Problem diagnosis |
+
+### Documentation
+
+Full deployment documentation in `docs/deployment/`:
+
+- `ARCHITECTURE.md` - System architecture overview
+- `LOAD_BALANCING.md` - Load balancer configuration
+- `DATABASE_REPLICATION.md` - PostgreSQL HA setup
+- `AUTO_SCALING.md` - Scaling configuration
+- `CDN_CONFIGURATION.md` - CDN integration
+- `ENVIRONMENTS.md` - Environment configuration
