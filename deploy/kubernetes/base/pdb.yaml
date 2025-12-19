@@ -1,0 +1,19 @@
+---
+# Pod Disruption Budget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: arctic-text2sql-api
+  namespace: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: api
+spec:
+  # Ensure at least 50% of pods are available during disruptions
+  minAvailable: "50%"
+  # Or use maxUnavailable for absolute number
+  # maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arctic-text2sql
+      app.kubernetes.io/component: api
