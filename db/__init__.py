@@ -6,6 +6,8 @@ This package provides database infrastructure:
 - schema: Schema introspection and serialization for prompts
 - executor: Safe SQL query execution with validation and retry
 - migrations: Alembic-based database schema migrations
+- registry: Multi-database registry for managing multiple connections (Issue #14)
+- dialects: SQL dialect adapters for different database engines (Issue #14)
 
 Usage:
     from db import get_database, close_database, SchemaIntrospector
@@ -27,14 +29,49 @@ Usage:
 
     # Cleanup
     await close_database()
+
+    # Multi-database support (Issue #14)
+    from db import get_database_registry, DatabaseConfig, SQLDialect
+
+    registry = await get_database_registry()
+    await registry.register_database(DatabaseConfig(
+        database_id="analytics",
+        connection_string="postgresql://...",
+    ))
+    async with registry.session("analytics") as session:
+        # Query analytics database
+        pass
 """
 
 from db.connection import DatabaseManager, close_database, get_database
+from db.dialects import (
+    DialectAdapter,
+    LimitOffset,
+    MariaDBAdapter,
+    MySQLAdapter,
+    PostgreSQLAdapter,
+    SQLDialect,
+    SQLiteAdapter,
+    SQLServerAdapter,
+    convert_url_to_async,
+    get_async_driver,
+    get_dialect_adapter,
+)
 from db.executor import (
     QueryResult,
     QueryValidator,
     SafeQueryExecutor,
     sanitize_identifier,
+)
+from db.registry import (
+    DatabaseConfig,
+    DatabaseHealth,
+    DatabaseRegistry,
+    DatabaseStatus,
+    RegisteredDatabase,
+    close_database_registry,
+    get_database_registry,
+    reset_database_registry,
 )
 from db.schema import (
     ColumnInfo,
@@ -62,4 +99,25 @@ __all__ = [
     "QueryResult",
     "QueryValidator",
     "sanitize_identifier",
+    # Multi-database registry (Issue #14)
+    "DatabaseRegistry",
+    "DatabaseConfig",
+    "DatabaseHealth",
+    "DatabaseStatus",
+    "RegisteredDatabase",
+    "get_database_registry",
+    "close_database_registry",
+    "reset_database_registry",
+    # SQL dialects (Issue #14)
+    "SQLDialect",
+    "DialectAdapter",
+    "PostgreSQLAdapter",
+    "MySQLAdapter",
+    "SQLiteAdapter",
+    "SQLServerAdapter",
+    "MariaDBAdapter",
+    "LimitOffset",
+    "get_dialect_adapter",
+    "get_async_driver",
+    "convert_url_to_async",
 ]
