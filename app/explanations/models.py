@@ -363,7 +363,9 @@ class QueryVisualization(BaseModel):
     format: str = Field(..., description="Visualization format")
     content: str = Field(..., description="Visualization content")
     width: int | None = Field(default=None, description="Width for text visualizations")
-    height: int | None = Field(default=None, description="Height for text visualizations")
+    height: int | None = Field(
+        default=None, description="Height for text visualizations"
+    )
 
 
 class QueryExplanationResult(BaseModel):
