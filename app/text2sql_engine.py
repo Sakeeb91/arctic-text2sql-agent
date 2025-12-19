@@ -21,7 +21,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from app.config import get_settings
+from app.config import FewShotSettings, get_settings
 from app.exceptions import (
     AgentMaxStepsExceededException,
     CircuitBreakerOpenException,
@@ -492,6 +492,11 @@ class Text2SQLEngine:
             else settings.agent.enable_validation
         )
         self._resilience_settings = settings.resilience
+        self._few_shot_settings = (
+            settings.few_shot
+            if isinstance(settings.few_shot, FewShotSettings)
+            else FewShotSettings(enabled=False)
+        )
         self._circuit_breaker = CircuitBreaker(
             CircuitBreakerConfig(
                 failure_threshold=self._resilience_settings.failure_threshold,
@@ -790,6 +795,33 @@ class Text2SQLEngine:
         self._schema_cache[database_id] = context
         return context
 
+    async def _get_few_shot_examples(
+        self,
+        natural_query: str,
+        database_id: str,
+        attempt: int,
+    ) -> list[Any]:
+        """Retrieve few-shot examples for the given attempt."""
+        if not self._few_shot_settings.enabled:
+            return []
+
+        if attempt == 0 and not self._few_shot_settings.use_on_first_attempt:
+            return []
+        if attempt > 0 and not self._few_shot_settings.use_on_retry:
+            return []
+
+        try:
+            from app.few_shot import get_few_shot_service
+
+            service = await get_few_shot_service()
+            return await service.get_prompt_examples(
+                natural_query=natural_query,
+                database_id=database_id,
+            )
+        except Exception as e:
+            logger.warning("few_shot_retrieval_failed", error=str(e))
+            return []
+
     async def _generate_with_retry(
         self,
         natural_query: str,
@@ -817,18 +849,27 @@ class Text2SQLEngine:
         warnings: list[str] = []
         best_result: InferenceResult | None = None
 
-        async def _run_inference(use_examples: bool) -> InferenceResult:
+        async def _run_inference(use_examples: bool, attempt: int) -> InferenceResult:
             model_loader = await get_model_loader()
             if not model_loader.is_loaded:
                 await model_loader.load()
 
             inference_engine = InferenceEngine(model_loader)
+            few_shot_examples = await self._get_few_shot_examples(
+                natural_query=natural_query,
+                database_id=schema_context.database_id,
+                attempt=attempt,
+            )
+            use_default = (
+                use_examples or self._few_shot_settings.include_default_examples
+            )
             prompt = build_prompt(
                 question=natural_query,
                 schema=schema_context.serialized_schema,
                 template_type="arctic",
                 dialect=schema_context.dialect,
-                use_default_examples=use_examples,
+                few_shot_examples=few_shot_examples,
+                use_default_examples=use_default,
                 context=(
                     f"Query intent: {intent.value}"
                     if intent != QueryIntent.UNKNOWN
@@ -857,8 +898,9 @@ class Text2SQLEngine:
 
                 async def _task(
                     use_examples: bool = current_use_examples,
+                    current_attempt: int = attempt,
                 ) -> InferenceResult:
-                    return await _run_inference(use_examples)
+                    return await _run_inference(use_examples, current_attempt)
 
                 result = await self._circuit_breaker.run(_task)
 
