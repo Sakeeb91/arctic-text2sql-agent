@@ -20,7 +20,7 @@ from transformers import (
     PreTrainedTokenizer,
 )
 
-from app.config import get_settings
+from app.config import ModelVersioningSettings, get_settings
 from app.exceptions import ModelLoadException
 from app.logging_config import get_logger
 
@@ -186,6 +186,15 @@ class ModelLoader:
         if self._is_loaded:
             return self._model, self._tokenizer  # type: ignore
 
+        resolved_model_name = await self._resolve_model_name()
+        if resolved_model_name != self._model_name:
+            logger.info(
+                "model_version_resolved",
+                previous_model=self._model_name,
+                resolved_model=resolved_model_name,
+            )
+            self._model_name = resolved_model_name
+
         logger.info(
             "loading_model",
             model_name=self._model_name,
@@ -238,6 +247,27 @@ class ModelLoader:
             tokenizer.pad_token = tokenizer.eos_token
 
         return tokenizer
+
+    async def _resolve_model_name(self) -> str:
+        """Resolve model name from version registry if configured."""
+        settings = get_settings()
+        model_versioning = getattr(settings, "model_versioning", None)
+        if not isinstance(model_versioning, ModelVersioningSettings):
+            return self._model_name
+        if not model_versioning.enabled:
+            return self._model_name
+        if not model_versioning.active_version_id:
+            return self._model_name
+
+        try:
+            from models.versioning import get_model_version_manager
+
+            manager = await get_model_version_manager()
+            resolved = await manager.resolve_model_name()
+            return resolved or self._model_name
+        except Exception as e:
+            logger.warning("model_version_resolution_failed", error=str(e))
+            return self._model_name
 
     async def _load_model(self) -> PreTrainedModel:
         """Load model with optimization settings."""
