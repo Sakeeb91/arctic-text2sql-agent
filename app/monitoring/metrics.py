@@ -6,7 +6,7 @@ all application metrics for Prometheus monitoring.
 """
 
 from functools import lru_cache
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
@@ -19,6 +19,14 @@ from prometheus_client import (
 )
 
 from app.config import get_settings
+
+if TYPE_CHECKING:
+    def _generate_latest(registry: CollectorRegistry) -> bytes: ...
+
+    _CONTENT_TYPE_LATEST: str
+else:
+    _generate_latest = generate_latest
+    _CONTENT_TYPE_LATEST = CONTENT_TYPE_LATEST
 
 
 class MetricsRegistry:
@@ -985,12 +993,12 @@ class MetricsRegistry:
         Returns:
             Prometheus text format metrics
         """
-        return cast(bytes, generate_latest(self._registry))  # type: ignore[redundant-cast]
+        return _generate_latest(self._registry)
 
     @property
     def content_type(self) -> str:
         """Get Prometheus content type for HTTP responses."""
-        return cast(str, CONTENT_TYPE_LATEST)  # type: ignore[redundant-cast]
+        return _CONTENT_TYPE_LATEST
 
     def get_all_metrics(self) -> dict[str, Any]:
         """
