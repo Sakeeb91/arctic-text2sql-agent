@@ -341,7 +341,11 @@ def create_schema_inspector_tool(db_manager: Any) -> Any:
 # =============================================================================
 
 
-def create_sql_generator_tool(model_loader: Any, schema_description: str) -> Any:
+def create_sql_generator_tool(
+    model_loader: Any,
+    schema_description: str,
+    database_id: str | None = None,
+) -> Any:
     """
     Create a SQL generator tool using the local Text2SQL model.
 
@@ -352,6 +356,7 @@ def create_sql_generator_tool(model_loader: Any, schema_description: str) -> Any
     Args:
         model_loader: Model loader with Text2SQL model
         schema_description: Schema description for prompt
+        database_id: Optional database identifier for example retrieval
 
     Returns:
         A tool function for SQL generation
@@ -394,12 +399,26 @@ def create_sql_generator_tool(model_loader: Any, schema_description: str) -> Any
                 if not model_loader.is_loaded:
                     await model_loader.load()
 
+                from app.config import get_settings
+                from app.few_shot import get_few_shot_service
+
+                settings = get_settings()
+                few_shot_examples = []
+                if settings.few_shot.enabled:
+                    service = await get_few_shot_service()
+                    few_shot_examples = await service.get_prompt_examples(
+                        natural_query=question,
+                        database_id=database_id,
+                    )
+
                 # Build prompt with schema
                 prompt = build_prompt(
                     question=question,
                     schema=schema_description,
                     template_type="arctic",
                     dialect="postgresql",
+                    few_shot_examples=few_shot_examples,
+                    use_default_examples=settings.few_shot.include_default_examples,
                 )
 
                 # Create inference engine and generate
