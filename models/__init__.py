@@ -40,6 +40,13 @@ from models.prompts import (
     format_schema_for_prompt,
     get_prompt_template,
 )
+from models.versioning import (
+    ModelVersion,
+    ModelVersionManager,
+    ModelVersionStatus,
+    get_model_version_manager,
+    reset_model_version_manager,
+)
 
 __all__ = [
     # Loader
@@ -66,4 +73,10 @@ __all__ = [
     "build_prompt",
     "get_prompt_template",
     "format_schema_for_prompt",
+    # Model versioning (Issue #16)
+    "ModelVersion",
+    "ModelVersionStatus",
+    "ModelVersionManager",
+    "get_model_version_manager",
+    "reset_model_version_manager",
 ]
