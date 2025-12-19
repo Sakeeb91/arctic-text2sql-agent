@@ -1,0 +1,207 @@
+# Arctic Text2SQL - High Availability Database Configuration
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.db-ha.yml up -d
+#
+# This file configures PostgreSQL streaming replication with:
+# - Primary database for writes
+# - Replica database for reads and failover
+# - PgBouncer connection pooler
+
+version: "3.8"
+
+services:
+  # ==========================================================================
+  # PostgreSQL Primary (Write Node)
+  # ==========================================================================
+  db-primary:
+    image: postgres:15-alpine
+    container_name: arctic-db-primary
+    hostname: db-primary
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-text2sql}
+      REPLICATOR_USER: ${REPLICATOR_USER:-replicator}
+      REPLICATOR_PASSWORD: ${REPLICATOR_PASSWORD}
+    volumes:
+      # Data volume
+      - postgres-primary-data:/var/lib/postgresql/data
+      # Archive directory for WAL files
+      - postgres-archive:/var/lib/postgresql/archive
+      # Custom configuration
+      - ./deploy/postgres/primary/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./deploy/postgres/primary/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      # Initialization scripts
+      - ./deploy/postgres/scripts:/docker-entrypoint-initdb.d:ro
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    ports:
+      - "${DB_PRIMARY_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres && psql -U postgres -c 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    labels:
+      - "service=postgresql"
+      - "role=primary"
+
+  # ==========================================================================
+  # PostgreSQL Replica (Read Node)
+  # ==========================================================================
+  db-replica:
+    image: postgres:15-alpine
+    container_name: arctic-db-replica
+    hostname: db-replica
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PRIMARY_HOST: db-primary
+      PRIMARY_PORT: 5432
+      REPLICATOR_USER: ${REPLICATOR_USER:-replicator}
+      REPLICATOR_PASSWORD: ${REPLICATOR_PASSWORD}
+      REPLICATION_SLOT: replica_slot_1
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      # Data volume (separate from primary)
+      - postgres-replica-data:/var/lib/postgresql/data
+      # Custom configuration
+      - ./deploy/postgres/replica/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./deploy/postgres/replica/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      # Initialization script
+      - ./deploy/postgres/scripts/init-replica.sh:/init-replica.sh:ro
+    # Initialize as replica if data directory is empty
+    entrypoint: |
+      bash -c '
+        if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+          echo "Initializing replica from primary..."
+          /init-replica.sh
+        fi
+        exec docker-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+      '
+    ports:
+      - "${DB_REPLICA_PORT:-5433}:5432"
+    depends_on:
+      db-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    labels:
+      - "service=postgresql"
+      - "role=replica"
+
+  # ==========================================================================
+  # PgBouncer Connection Pooler
+  # ==========================================================================
+  pgbouncer:
+    image: edoburu/pgbouncer:1.21.0
+    container_name: arctic-pgbouncer
+    hostname: pgbouncer
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db-primary:5432/${POSTGRES_DB:-text2sql}
+      # Pool settings
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 50
+      MIN_POOL_SIZE: 10
+      RESERVE_POOL_SIZE: 25
+      RESERVE_POOL_TIMEOUT: 5
+      # Timeouts
+      SERVER_LIFETIME: 3600
+      SERVER_IDLE_TIMEOUT: 600
+      SERVER_CONNECT_TIMEOUT: 15
+      SERVER_LOGIN_RETRY: 15
+      QUERY_TIMEOUT: 0
+      QUERY_WAIT_TIMEOUT: 120
+      CLIENT_IDLE_TIMEOUT: 0
+      # Admin
+      ADMIN_USERS: postgres
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:5432"
+    depends_on:
+      db-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    labels:
+      - "service=pgbouncer"
+      - "role=connection-pooler"
+
+  # ==========================================================================
+  # Override API to use PgBouncer
+  # ==========================================================================
+  api:
+    environment:
+      # Connect through PgBouncer instead of directly to database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-text2sql}
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      db-primary:
+        condition: service_healthy
+
+  # ==========================================================================
+  # Remove standalone db service (replaced by db-primary)
+  # ==========================================================================
+  db:
+    profiles:
+      - disabled
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres-primary-data:
+    name: arctic-postgres-primary
+  postgres-replica-data:
+    name: arctic-postgres-replica
+  postgres-archive:
+    name: arctic-postgres-archive
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: arctic-text2sql-network
