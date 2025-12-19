@@ -88,6 +88,13 @@ from db.examples import (
     get_example_store,
     reset_example_store,
 )
+from db.feedback import (
+    FeedbackRecord,
+    FeedbackStatus,
+    FeedbackStore,
+    get_feedback_store,
+    reset_feedback_store,
+)
 
 __all__ = [
     # Connection management
@@ -107,6 +114,12 @@ __all__ = [
     "ExampleSearchResult",
     "get_example_store",
     "reset_example_store",
+    # Feedback store (Issue #16)
+    "FeedbackStore",
+    "FeedbackRecord",
+    "FeedbackStatus",
+    "get_feedback_store",
+    "reset_feedback_store",
     # Query execution
     "SafeQueryExecutor",
     "QueryResult",
