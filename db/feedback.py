@@ -258,7 +258,9 @@ class FeedbackStore:
         if result.rowcount == 0:
             raise FeedbackNotFoundException(feedback_id=feedback_id)
 
-        logger.info("feedback_status_updated", feedback_id=feedback_id, status=status.value)
+        logger.info(
+            "feedback_status_updated", feedback_id=feedback_id, status=status.value
+        )
         return await self.get_feedback(feedback_id)
 
     async def delete_feedback(self, feedback_id: str) -> None:

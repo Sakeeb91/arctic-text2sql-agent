@@ -58,9 +58,7 @@ class TestFeedbackRoutes:
         )
         mock_store.submit_feedback.return_value = feedback
 
-        with patch(
-            "app.routes_feedback.get_feedback_store", return_value=mock_store
-        ):
+        with patch("app.routes_feedback.get_feedback_store", return_value=mock_store):
             response = client.post(
                 "/api/v1/feedback",
                 json={
@@ -86,9 +84,7 @@ class TestFeedbackRoutes:
         )
         mock_store.update_feedback_status.return_value = feedback
 
-        with patch(
-            "app.routes_feedback.get_feedback_store", return_value=mock_store
-        ):
+        with patch("app.routes_feedback.get_feedback_store", return_value=mock_store):
             response = client.patch(
                 "/api/v1/feedback/fb-456/status",
                 json={"status": "verified"},

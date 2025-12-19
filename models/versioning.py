@@ -91,7 +91,9 @@ class ModelVersionManager:
         version_id = str(uuid.uuid4())
         tags = tags or []
         metrics = metrics or {}
-        status = ModelVersionStatus.ACTIVE if set_active else ModelVersionStatus.INACTIVE
+        status = (
+            ModelVersionStatus.ACTIVE if set_active else ModelVersionStatus.INACTIVE
+        )
 
         query = text(
             """
@@ -307,7 +309,9 @@ class ModelVersionManager:
             description=row.get("description"),
             tags=self._parse_json(row.get("tags"), default=list),
             metrics=self._parse_json(row.get("metrics"), default=dict),
-            status=ModelVersionStatus(row.get("status", ModelVersionStatus.INACTIVE.value)),
+            status=ModelVersionStatus(
+                row.get("status", ModelVersionStatus.INACTIVE.value)
+            ),
             created_at=self._parse_datetime(row.get("created_at")),
             updated_at=self._parse_datetime(row.get("updated_at")),
         )

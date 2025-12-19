@@ -170,9 +170,7 @@ class FineTuningPipeline:
             raise FineTuningException(message="No verified examples available")
 
         model_name = model_name or self._settings.huggingface.model_name
-        output_dir = Path(
-            output_dir or self._settings.fine_tuning.output_dir
-        ).resolve()
+        output_dir = Path(output_dir or self._settings.fine_tuning.output_dir).resolve()
 
         texts = [f"{example.prompt} {example.response}".strip() for example in examples]
 

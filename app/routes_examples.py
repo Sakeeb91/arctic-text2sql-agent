@@ -89,7 +89,9 @@ async def create_example(
     if not is_valid_query:
         raise ValidationException(
             message="Invalid natural language query",
-            validation_errors=[{"field": "natural_query", "error": e} for e in query_errors],
+            validation_errors=[
+                {"field": "natural_query", "error": e} for e in query_errors
+            ],
         )
 
     is_valid_db, db_error = validate_database_id(example_request.database_id)
@@ -168,9 +170,7 @@ async def search_examples(
         verified_only=search_request.verified_only,
     )
 
-    return ExampleSearchResponse(
-        results=[result.to_dict() for result in results]
-    )
+    return ExampleSearchResponse(results=[result.to_dict() for result in results])
 
 
 @router.patch("/{example_id}", response_model=ExampleResponse)

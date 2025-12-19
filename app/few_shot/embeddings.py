@@ -156,9 +156,7 @@ def get_embedding_provider() -> EmbeddingProvider:
 
     if strategy == "model":
         logger.info("embedding_provider_selected", strategy="model")
-        return ModelEmbeddingProvider(
-            max_length=settings.few_shot.embedding_max_length
-        )
+        return ModelEmbeddingProvider(max_length=settings.few_shot.embedding_max_length)
 
     logger.info("embedding_provider_selected", strategy="hash")
     return HashingEmbeddingProvider(dimension=settings.few_shot.embedding_dim)

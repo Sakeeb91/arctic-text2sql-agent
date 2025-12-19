@@ -76,7 +76,9 @@ async def submit_feedback(
     if not is_valid_query:
         raise ValidationException(
             message="Invalid natural language query",
-            validation_errors=[{"field": "natural_query", "error": e} for e in query_errors],
+            validation_errors=[
+                {"field": "natural_query", "error": e} for e in query_errors
+            ],
         )
 
     is_valid_db, db_error = validate_database_id(feedback_request.database_id)
@@ -179,11 +181,17 @@ async def _maybe_promote_feedback(
     database_id: str,
 ) -> None:
     settings = get_settings()
-    if not settings.feedback.auto_promote_to_examples and not feedback_request.promote_to_examples:
+    if (
+        not settings.feedback.auto_promote_to_examples
+        and not feedback_request.promote_to_examples
+    ):
         return
     if not feedback_request.corrected_sql:
         return
-    if feedback_request.rating is not None and feedback_request.rating < settings.feedback.min_rating_for_promotion:
+    if (
+        feedback_request.rating is not None
+        and feedback_request.rating < settings.feedback.min_rating_for_promotion
+    ):
         return
 
     store = await get_example_store()

@@ -53,7 +53,9 @@ class ExampleRecord:
             "tags": self.tags,
             "metadata": self.metadata,
             "usage_count": self.usage_count,
-            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "last_used_at": (
+                self.last_used_at.isoformat() if self.last_used_at else None
+            ),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -313,9 +315,7 @@ class ExampleStore:
         """Delete an example from the store."""
         await self._ensure_initialized()
 
-        query = text(
-            "DELETE FROM few_shot_examples WHERE example_id = :example_id"
-        )
+        query = text("DELETE FROM few_shot_examples WHERE example_id = :example_id")
 
         async with self._db_manager.session() as session:
             result = await session.execute(query, {"example_id": example_id})

@@ -75,9 +75,7 @@ async def get_active_model_version(request: Request) -> ModelVersionResponse | N
 
 @router.get("/versions/{version_id}", response_model=ModelVersionResponse)
 @limiter.limit("30/minute")
-async def get_model_version(
-    request: Request, version_id: str
-) -> ModelVersionResponse:
+async def get_model_version(request: Request, version_id: str) -> ModelVersionResponse:
     """Retrieve model version details."""
     manager = await get_model_version_manager()
     version = await manager.get_version(version_id)

@@ -64,7 +64,9 @@ class TestModelVersionRoutes:
         assert response.status_code == 200
         assert response.json()[0]["version_id"] == "ver-1"
 
-    def test_register_version(self, client: TestClient, mock_manager: MagicMock) -> None:
+    def test_register_version(
+        self, client: TestClient, mock_manager: MagicMock
+    ) -> None:
         mock_manager.register_version.return_value = ModelVersion(
             version_id="ver-2",
             model_name="model/b",

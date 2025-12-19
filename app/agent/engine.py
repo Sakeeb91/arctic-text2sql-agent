@@ -98,7 +98,9 @@ def _truncate_on_stop_sequences(text: str, stop_sequences: list[str] | None) -> 
     if not stop_sequences:
         return text
 
-    positions = [text.find(seq) for seq in stop_sequences if seq and text.find(seq) != -1]
+    positions = [
+        text.find(seq) for seq in stop_sequences if seq and text.find(seq) != -1
+    ]
     if not positions:
         return text
 
@@ -149,7 +151,9 @@ class LocalInferenceModel(Model):
         )
         prompt = _render_prompt(completion_kwargs["messages"])
 
-        with self._instrumentor.trace_inference(operation="code_agent") as trace_context:
+        with self._instrumentor.trace_inference(
+            operation="code_agent"
+        ) as trace_context:
             result = _run_coroutine_sync(self._generate_async(prompt))
             trace_context["input_tokens"] = getattr(result, "input_tokens", 0)
             trace_context["output_tokens"] = getattr(result, "output_tokens", 0)
@@ -253,11 +257,7 @@ def parse_validation_result(validation_str: str) -> ValidationResult:
         )
 
     if "NEEDS_CORRECTION" in validation_str:
-        suggestions = (
-            validation_str.split(" | ")[1:]
-            if " | " in validation_str
-            else []
-        )
+        suggestions = validation_str.split(" | ")[1:] if " | " in validation_str else []
         return ValidationResult(
             outcome=ValidationOutcome.NEEDS_CORRECTION,
             message=validation_str.replace("NEEDS_CORRECTION: ", ""),
@@ -290,7 +290,9 @@ class AgentRunner:
         self._settings = settings
 
         model_name = getattr(getattr(settings, "huggingface", None), "model_name", None)
-        self._instrumentor = ModelInstrumentor(model_name=model_name or "arctic-text2sql")
+        self._instrumentor = ModelInstrumentor(
+            model_name=model_name or "arctic-text2sql"
+        )
 
     async def run(
         self,
@@ -313,7 +315,9 @@ class AgentRunner:
         model_loader = await get_model_loader()
         agent_model = LocalInferenceModel(
             model_loader=model_loader,
-            model_id=getattr(getattr(self._settings, "huggingface", None), "model_name", None),
+            model_id=getattr(
+                getattr(self._settings, "huggingface", None), "model_name", None
+            ),
             instrumentor=self._instrumentor,
         )
 
@@ -481,7 +485,9 @@ class AgentRunner:
 
     def _build_instructions(self, db_context: DatabaseContext, execute: bool) -> str:
         execution_note = (
-            "You may execute SQL to validate results." if execute else "Only execute SQL when validation is needed."
+            "You may execute SQL to validate results."
+            if execute
+            else "Only execute SQL when validation is needed."
         )
         return (
             "You are a Text2SQL ReAct agent. Use the tools to inspect schema, "

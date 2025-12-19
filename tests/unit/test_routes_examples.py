@@ -58,9 +58,7 @@ class TestExampleRoutes:
         )
         mock_store.add_example.return_value = example
 
-        with patch(
-            "app.routes_examples.get_example_store", return_value=mock_store
-        ):
+        with patch("app.routes_examples.get_example_store", return_value=mock_store):
             response = client.post(
                 "/api/v1/examples",
                 json={
@@ -86,9 +84,7 @@ class TestExampleRoutes:
             ExampleSearchResult(example=example, similarity=0.9)
         ]
 
-        with patch(
-            "app.routes_examples.get_example_store", return_value=mock_store
-        ):
+        with patch("app.routes_examples.get_example_store", return_value=mock_store):
             response = client.post(
                 "/api/v1/examples/search",
                 json={

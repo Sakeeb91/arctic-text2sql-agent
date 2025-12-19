@@ -423,6 +423,7 @@ class TestGlobalEngineManagement:
         # Clean up
         reset_agent_engine()
 
+
 # =============================================================================
 # Test Database Context Resolution
 # =============================================================================
@@ -450,9 +451,7 @@ class TestDatabaseContextResolution:
         registry.session.return_value = "session_ctx"
 
         with patch("app.agent.engine.get_settings", return_value=mock_settings):
-            with patch(
-                "app.agent.engine.get_database_registry", return_value=registry
-            ):
+            with patch("app.agent.engine.get_database_registry", return_value=registry):
                 context = await resolve_database_context(mock_db_manager, "analytics")
 
         assert context.database_id == "analytics"

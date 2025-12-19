@@ -321,6 +321,7 @@ def create_schema_inspector_tool(
         )
 
         try:
+
             async def get_table_info() -> str:
                 introspector = SchemaIntrospector(engine)
                 schema = await introspector.get_schema(
@@ -448,6 +449,7 @@ def create_sql_generator_tool(
         )
 
         try:
+
             async def generate_sql() -> str:
                 # Ensure model is loaded
                 if not model_loader.is_loaded:
