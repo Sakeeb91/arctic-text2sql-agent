@@ -1227,3 +1227,412 @@ async def generate_sql_batch(
             message=f"Batch query failed: {str(e)}",
             details={"database_id": batch_request.database_id},
         ) from e
+
+
+# =============================================================================
+# Query Explanation Endpoints (Issue #15)
+# =============================================================================
+
+
+class ExplainRequest(BaseModel):
+    """Request model for SQL explanation."""
+
+    sql: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="SQL query to explain",
+    )
+    database_id: str | None = Field(
+        None,
+        max_length=100,
+        description="Optional database ID for context",
+    )
+    include_visualization: bool = Field(
+        default=True,
+        description="Include query structure visualization",
+    )
+    include_optimization_hints: bool = Field(
+        default=True,
+        description="Include optimization suggestions",
+    )
+    visualization_format: str = Field(
+        default="ascii",
+        description="Visualization format (ascii, json, html, mermaid)",
+    )
+
+
+class ExplainResponse(BaseModel):
+    """Response model for SQL explanation."""
+
+    query_id: str = Field(..., description="Unique identifier for this explanation")
+    sql: str = Field(..., description="Original SQL query")
+    summary: str = Field(..., description="Brief summary of the query")
+    detailed_explanation: str = Field(..., description="Detailed explanation")
+    data_retrieval: str = Field(..., description="What data is retrieved")
+    tables_used: list[str] = Field(default_factory=list, description="Tables used")
+    filters_applied: list[str] = Field(
+        default_factory=list, description="Filters applied"
+    )
+    aggregations: list[str] = Field(
+        default_factory=list, description="Aggregations performed"
+    )
+    sorting: str | None = Field(None, description="Sorting applied")
+    limitations: str | None = Field(None, description="Row limits")
+    complexity_level: str = Field(..., description="Complexity level")
+    complexity_score: float = Field(..., description="Complexity score (0-1)")
+    complexity_factors: list[str] = Field(
+        default_factory=list, description="Factors affecting complexity"
+    )
+    optimization_hints: list[dict[str, Any]] = Field(
+        default_factory=list, description="Optimization suggestions"
+    )
+    breakdown_steps: list[dict[str, Any]] = Field(
+        default_factory=list, description="Step-by-step breakdown"
+    )
+    visualization: str | None = Field(None, description="Query visualization")
+    created_at: datetime = Field(..., description="When explanation was generated")
+
+
+class VisualizeRequest(BaseModel):
+    """Request model for query visualization."""
+
+    sql: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="SQL query to visualize",
+    )
+    format: str = Field(
+        default="ascii",
+        description="Output format (ascii, json, html, mermaid)",
+    )
+
+
+class VisualizeResponse(BaseModel):
+    """Response model for query visualization."""
+
+    format: str = Field(..., description="Visualization format")
+    content: str = Field(..., description="Visualization content")
+    width: int | None = Field(None, description="Width hint")
+    height: int | None = Field(None, description="Height hint")
+
+
+class BatchExplainRequest(BaseModel):
+    """Request model for batch SQL explanation."""
+
+    queries: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="SQL queries to explain (max 10)",
+    )
+    database_id: str | None = Field(
+        None,
+        description="Optional database ID for context",
+    )
+
+
+class BatchExplainResponse(BaseModel):
+    """Response model for batch SQL explanation."""
+
+    results: list[ExplainResponse] = Field(..., description="Explanation results")
+    total: int = Field(..., description="Total queries processed")
+    successful: int = Field(..., description="Successful explanations")
+    failed: int = Field(..., description="Failed explanations")
+    total_time_ms: float = Field(..., description="Total processing time")
+
+
+@router.post("/explain", response_model=ExplainResponse)
+@limiter.limit("20/minute")
+async def explain_sql(
+    request: Request, explain_request: ExplainRequest
+) -> ExplainResponse:
+    """
+    Generate natural language explanation of a SQL query.
+
+    Provides comprehensive explanation including:
+    - Summary of what the query does
+    - Step-by-step breakdown
+    - Complexity analysis
+    - Optimization suggestions
+    - Query visualization
+
+    Rate limit: 20 requests per minute per client.
+
+    Issue #15: Query Explanation & Visualization.
+    """
+    from app.explanations import VisualizationFormat, get_explanation_engine
+
+    logger.info(
+        "explain_sql_request",
+        sql_length=len(explain_request.sql),
+        database_id=explain_request.database_id,
+    )
+
+    try:
+        # Parse visualization format
+        try:
+            viz_format = VisualizationFormat(
+                explain_request.visualization_format.lower()
+            )
+        except ValueError:
+            viz_format = VisualizationFormat.ASCII
+
+        engine = await get_explanation_engine()
+        result = await engine.explain(
+            sql=explain_request.sql,
+            database_id=explain_request.database_id,
+            include_visualization=explain_request.include_visualization,
+            include_optimization_hints=explain_request.include_optimization_hints,
+            visualization_format=viz_format,
+        )
+
+        return ExplainResponse(
+            query_id=result.query_id,
+            sql=result.sql,
+            summary=result.explanation.summary,
+            detailed_explanation=result.explanation.detailed_explanation,
+            data_retrieval=result.explanation.data_retrieval,
+            tables_used=result.explanation.tables_used,
+            filters_applied=result.explanation.filters_applied,
+            aggregations=result.explanation.aggregations,
+            sorting=result.explanation.sorting,
+            limitations=result.explanation.limitations,
+            complexity_level=result.complexity.level,
+            complexity_score=result.complexity.score,
+            complexity_factors=result.complexity.factors,
+            optimization_hints=[
+                {
+                    "category": h.category,
+                    "title": h.title,
+                    "description": h.description,
+                    "severity": h.severity,
+                    "affected_tables": h.affected_tables,
+                }
+                for h in result.optimization_hints
+            ],
+            breakdown_steps=[
+                {
+                    "step_number": step.step_number,
+                    "clause_type": step.clause_type,
+                    "description": step.description,
+                    "sql_fragment": step.sql_fragment,
+                }
+                for step in result.breakdown.steps
+            ],
+            visualization=(
+                result.visualization.content if result.visualization else None
+            ),
+            created_at=result.created_at,
+        )
+
+    except Exception as e:
+        logger.error("explain_sql_error", error=str(e))
+        raise
+
+
+@router.post("/visualize", response_model=VisualizeResponse)
+@limiter.limit("30/minute")
+async def visualize_sql(
+    request: Request, visualize_request: VisualizeRequest
+) -> VisualizeResponse:
+    """
+    Generate visualization of SQL query structure.
+
+    Supported formats:
+    - ascii: ASCII tree diagram
+    - json: JSON structure
+    - html: HTML visualization
+    - mermaid: Mermaid diagram syntax
+
+    Rate limit: 30 requests per minute per client.
+
+    Issue #15: Query Explanation & Visualization.
+    """
+    from app.explanations import VisualizationFormat, get_explanation_engine
+
+    logger.info(
+        "visualize_sql_request",
+        sql_length=len(visualize_request.sql),
+        format=visualize_request.format,
+    )
+
+    try:
+        # Parse visualization format
+        try:
+            viz_format = VisualizationFormat(visualize_request.format.lower())
+        except ValueError:
+            viz_format = VisualizationFormat.ASCII
+
+        engine = await get_explanation_engine()
+        visualization = await engine.visualize(
+            sql=visualize_request.sql,
+            format_type=viz_format,
+        )
+
+        return VisualizeResponse(
+            format=visualization.format,
+            content=visualization.content,
+            width=visualization.width,
+            height=visualization.height,
+        )
+
+    except Exception as e:
+        logger.error("visualize_sql_error", error=str(e))
+        raise
+
+
+@router.get("/explain/{query_id}", response_model=ExplainResponse)
+@limiter.limit("30/minute")
+async def get_cached_explanation(request: Request, query_id: str) -> ExplainResponse:
+    """
+    Retrieve a cached explanation by query ID.
+
+    Returns a previously generated explanation if it exists in cache.
+
+    Rate limit: 30 requests per minute per client.
+
+    Issue #15: Query Explanation & Visualization.
+    """
+    from app.explanations import get_explanation_engine
+
+    logger.info("get_cached_explanation", query_id=query_id)
+
+    engine = await get_explanation_engine()
+    result = await engine.get_cached_explanation(query_id)
+
+    return ExplainResponse(
+        query_id=result.query_id,
+        sql=result.sql,
+        summary=result.explanation.summary,
+        detailed_explanation=result.explanation.detailed_explanation,
+        data_retrieval=result.explanation.data_retrieval,
+        tables_used=result.explanation.tables_used,
+        filters_applied=result.explanation.filters_applied,
+        aggregations=result.explanation.aggregations,
+        sorting=result.explanation.sorting,
+        limitations=result.explanation.limitations,
+        complexity_level=result.complexity.level,
+        complexity_score=result.complexity.score,
+        complexity_factors=result.complexity.factors,
+        optimization_hints=[
+            {
+                "category": h.category,
+                "title": h.title,
+                "description": h.description,
+                "severity": h.severity,
+                "affected_tables": h.affected_tables,
+            }
+            for h in result.optimization_hints
+        ],
+        breakdown_steps=[
+            {
+                "step_number": step.step_number,
+                "clause_type": step.clause_type,
+                "description": step.description,
+                "sql_fragment": step.sql_fragment,
+            }
+            for step in result.breakdown.steps
+        ],
+        visualization=result.visualization.content if result.visualization else None,
+        created_at=result.created_at,
+    )
+
+
+@router.post("/explain/batch", response_model=BatchExplainResponse)
+@limiter.limit("5/minute")
+async def explain_sql_batch(
+    request: Request, batch_request: BatchExplainRequest
+) -> BatchExplainResponse:
+    """
+    Generate explanations for multiple SQL queries.
+
+    Processes up to 10 queries and returns explanations for each.
+
+    Rate limit: 5 requests per minute per client.
+
+    Issue #15: Query Explanation & Visualization.
+    """
+    import time
+
+    from app.explanations import get_explanation_engine
+
+    logger.info(
+        "explain_sql_batch_request",
+        query_count=len(batch_request.queries),
+        database_id=batch_request.database_id,
+    )
+
+    start_time = time.perf_counter()
+
+    engine = await get_explanation_engine()
+    results = await engine.explain_batch(
+        queries=batch_request.queries,
+        database_id=batch_request.database_id,
+    )
+
+    total_time_ms = (time.perf_counter() - start_time) * 1000
+
+    # Convert results to response format
+    response_results = []
+    successful = 0
+    for result in results:
+        if "error" not in result.metadata:
+            successful += 1
+
+        response_results.append(
+            ExplainResponse(
+                query_id=result.query_id,
+                sql=result.sql,
+                summary=result.explanation.summary,
+                detailed_explanation=result.explanation.detailed_explanation,
+                data_retrieval=result.explanation.data_retrieval,
+                tables_used=result.explanation.tables_used,
+                filters_applied=result.explanation.filters_applied,
+                aggregations=result.explanation.aggregations,
+                sorting=result.explanation.sorting,
+                limitations=result.explanation.limitations,
+                complexity_level=result.complexity.level,
+                complexity_score=result.complexity.score,
+                complexity_factors=result.complexity.factors,
+                optimization_hints=[
+                    {
+                        "category": h.category,
+                        "title": h.title,
+                        "description": h.description,
+                        "severity": h.severity,
+                        "affected_tables": h.affected_tables,
+                    }
+                    for h in result.optimization_hints
+                ],
+                breakdown_steps=[
+                    {
+                        "step_number": step.step_number,
+                        "clause_type": step.clause_type,
+                        "description": step.description,
+                        "sql_fragment": step.sql_fragment,
+                    }
+                    for step in result.breakdown.steps
+                ],
+                visualization=(
+                    result.visualization.content if result.visualization else None
+                ),
+                created_at=result.created_at,
+            )
+        )
+
+    logger.info(
+        "explain_sql_batch_complete",
+        total=len(results),
+        successful=successful,
+        total_time_ms=round(total_time_ms, 2),
+    )
+
+    return BatchExplainResponse(
+        results=response_results,
+        total=len(results),
+        successful=successful,
+        failed=len(results) - successful,
+        total_time_ms=total_time_ms,
+    )
