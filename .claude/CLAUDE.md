@@ -52,7 +52,9 @@ app/              # FastAPI application
 db/               # Database layer
 ├── connection.py # DatabaseManager singleton, async pooling
 ├── schema.py     # Schema introspection
-└── executor.py   # QueryValidator, SafeQueryExecutor
+├── executor.py   # QueryValidator, SafeQueryExecutor
+├── registry.py   # Multi-database registry (Issue #14)
+└── dialects.py   # SQL dialect adapters (Issue #14)
 
 models/           # ML model layer
 ├── loader.py     # ModelLoader with lazy loading, quantization
@@ -62,7 +64,7 @@ models/           # ML model layer
 
 ### Key Patterns
 
-- **Singletons**: `get_database()`, `get_settings()`, `get_model_loader()`, `get_text2sql_engine()`, `get_agent_engine()`
+- **Singletons**: `get_database()`, `get_settings()`, `get_model_loader()`, `get_text2sql_engine()`, `get_agent_engine()`, `get_database_registry()`
 - **Async-First**: All I/O is async; use `AsyncSession` from SQLAlchemy
 - **Exception Mapping**: `Text2SQLException` subclasses map to HTTP status codes automatically via global handlers
 
@@ -90,6 +92,14 @@ result = await engine.generate_sql(
 - `POST /api/v1/agent/retry` - Retry with correction hints
 - `POST /api/v1/auth/token` - JWT authentication
 - `GET /api/v1/health` - Health check
+
+**Database Management (Issue #14):**
+- `POST /api/v1/databases` - Register a new database
+- `GET /api/v1/databases` - List all registered databases
+- `GET /api/v1/databases/{database_id}` - Get database details
+- `GET /api/v1/databases/{database_id}/health` - Health check database
+- `DELETE /api/v1/databases/{database_id}` - Unregister database
+- `GET /api/v1/databases/health/all` - Health check all databases
 
 ## Configuration
 
@@ -560,3 +570,127 @@ Full deployment documentation in `docs/deployment/`:
 - `AUTO_SCALING.md` - Scaling configuration
 - `CDN_CONFIGURATION.md` - CDN integration
 - `ENVIRONMENTS.md` - Environment configuration
+
+## Multi-Database Support (Issue #14)
+
+The application supports connecting to multiple databases simultaneously with different SQL dialects.
+
+### Supported Dialects
+
+| Dialect | Driver | Status |
+|---------|--------|--------|
+| PostgreSQL | asyncpg | Supported |
+| MySQL | aiomysql | Supported |
+| MariaDB | aiomysql | Supported |
+| SQLite | aiosqlite | Supported |
+| SQL Server | aioodbc | Supported |
+
+### Environment Variables
+
+```bash
+# Multi-database settings
+MULTIDB_ENABLED=true                  # Enable multi-database support
+MULTIDB_MAX_DATABASES=50              # Maximum registered databases
+MULTIDB_DEFAULT_POOL_SIZE=5           # Default connection pool size
+MULTIDB_DEFAULT_MAX_OVERFLOW=10       # Default max overflow
+MULTIDB_DEFAULT_POOL_TIMEOUT=30       # Default connection timeout
+MULTIDB_HEALTH_CHECK_INTERVAL=60      # Health check interval (seconds)
+MULTIDB_REQUIRE_CONNECTION_TEST=true  # Test connection on registration
+```
+
+### Using the Database Registry
+
+```python
+from db import get_database_registry, DatabaseConfig, SQLDialect
+
+# Get the registry singleton
+registry = await get_database_registry()
+
+# Register a new database
+await registry.register_database(DatabaseConfig(
+    database_id="analytics",
+    connection_string="postgresql://user:pass@analytics.db.com/warehouse",
+    display_name="Analytics Warehouse",
+    description="Read-only analytics database",
+    pool_size=10,
+    tags=["analytics", "readonly"],
+))
+
+# Use a registered database
+async with registry.session("analytics") as session:
+    result = await session.execute(text("SELECT COUNT(*) FROM events"))
+    count = result.scalar()
+
+# Get dialect adapter for SQL generation
+adapter = registry.get_adapter("analytics")
+limit_clause = adapter.get_limit_offset_clause(LimitOffset(limit=100))
+
+# Health check
+health = await registry.health_check("analytics")
+print(f"Status: {health.status}, Latency: {health.latency_ms}ms")
+
+# List databases
+databases = registry.list_databases(dialect=SQLDialect.POSTGRESQL, healthy_only=True)
+
+# Unregister
+await registry.unregister_database("analytics")
+```
+
+### SQL Dialect Adapters
+
+Each adapter provides dialect-specific SQL generation:
+
+```python
+from db import get_dialect_adapter, LimitOffset, SQLDialect
+
+# Get adapter for a dialect
+adapter = get_dialect_adapter(SQLDialect.POSTGRESQL)
+
+# Quote identifiers safely
+table = adapter.quote_identifier("user_table")  # "user_table"
+
+# Dialect-specific LIMIT/OFFSET
+limit_offset = adapter.get_limit_offset_clause(LimitOffset(limit=10, offset=5))
+# PostgreSQL: "LIMIT 10 OFFSET 5"
+# MySQL: "LIMIT 5, 10"
+# SQL Server: "OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY"
+
+# Concatenation
+concat = adapter.get_concat_function("first_name", "' '", "last_name")
+# PostgreSQL: "first_name || ' ' || last_name"
+# MySQL: "CONCAT(first_name, ' ', last_name)"
+
+# Health check query
+health_query = adapter.get_health_check_query()  # "SELECT 1"
+```
+
+### API Usage
+
+Register a database via API:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/databases \
+  -H "Content-Type: application/json" \
+  -d '{
+    "database_id": "analytics",
+    "connection_string": "postgresql://user:pass@localhost/analytics",
+    "display_name": "Analytics Database",
+    "pool_size": 10,
+    "tags": ["analytics"]
+  }'
+```
+
+List registered databases:
+
+```bash
+curl http://localhost:8000/api/v1/databases
+curl http://localhost:8000/api/v1/databases?dialect=postgresql
+curl http://localhost:8000/api/v1/databases?healthy_only=true
+```
+
+Health check:
+
+```bash
+curl http://localhost:8000/api/v1/databases/analytics/health
+curl http://localhost:8000/api/v1/databases/health/all
+```
