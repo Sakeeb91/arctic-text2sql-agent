@@ -1,0 +1,40 @@
+---
+# ConfigMap for non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arctic-text2sql-config
+  namespace: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/component: config
+data:
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_DEBUG: "false"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+
+  # Model Configuration
+  TEXT2SQL_MODEL: "Snowflake/Arctic-Text2SQL-R1-7B"
+  MODEL_DEVICE: "cpu"
+
+  # Agent Configuration
+  AGENT_MAX_STEPS: "5"
+  AGENT_MIN_CONFIDENCE: "0.8"
+  AGENT_VERBOSITY: "0"
+
+  # Cache Configuration
+  REDIS_URL: "redis://redis:6379/0"
+
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"
+
+  # Monitoring
+  ENABLE_METRICS: "true"
+  ENABLE_TRACING: "true"
+  OTLP_ENDPOINT: "http://jaeger:4317"
+  TRACE_SAMPLE_RATE: "0.1"
+  SERVICE_NAME: "arctic-text2sql"

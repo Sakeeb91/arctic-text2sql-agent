@@ -1,0 +1,9 @@
+---
+# Namespace for Arctic Text2SQL deployment
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arctic-text2sql
+  labels:
+    app.kubernetes.io/name: arctic-text2sql
+    app.kubernetes.io/managed-by: kustomize
