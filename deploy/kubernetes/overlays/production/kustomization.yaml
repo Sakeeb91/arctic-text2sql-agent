@@ -1,0 +1,96 @@
+---
+# Kustomize production overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: arctic-text2sql
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: production
+
+# Production ConfigMap overrides
+configMapGenerator:
+  - name: arctic-text2sql-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=INFO
+      - API_DEBUG=false
+      - AGENT_MIN_CONFIDENCE=0.8
+      - AGENT_VERBOSITY=0
+      - TRACE_SAMPLE_RATE=0.1
+      - MODEL_DEVICE=cuda
+
+# Production patches
+patches:
+  # Increase replicas for production
+  - target:
+      kind: Deployment
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  # Increase HPA settings for production
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+
+  # Production resource requests
+  - target:
+      kind: Deployment
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "16Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "16"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "32Gi"
+
+  # Add GPU resource limit for production
+  - target:
+      kind: Deployment
+      name: arctic-text2sql-api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu
+        value: "1"
+
+  # Stricter PDB for production
+  - target:
+      kind: PodDisruptionBudget
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: "75%"
+
+  # Increase storage for production
+  - target:
+      kind: PersistentVolumeClaim
+      name: hf-cache-pvc
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "100Gi"
+
+images:
+  - name: ghcr.io/sakeeb91/arctic-text2sql-agent
+    newTag: v1.0.0  # Pin to specific version in production

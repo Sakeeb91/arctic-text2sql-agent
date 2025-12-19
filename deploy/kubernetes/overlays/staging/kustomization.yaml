@@ -1,0 +1,77 @@
+---
+# Kustomize staging overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: arctic-text2sql-staging
+
+resources:
+  - ../../base
+
+# Override namespace for staging
+nameSuffix: "-staging"
+
+commonLabels:
+  environment: staging
+
+# Patch for staging-specific changes
+patches:
+  # Reduce replicas for staging
+  - target:
+      kind: Deployment
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # Reduce HPA max replicas for staging
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 4
+
+  # Reduce resource requests for staging
+  - target:
+      kind: Deployment
+      name: arctic-text2sql-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "8Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "16Gi"
+
+# Staging ConfigMap overrides
+configMapGenerator:
+  - name: arctic-text2sql-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=DEBUG
+      - API_DEBUG=false
+      - AGENT_MIN_CONFIDENCE=0.7
+      - AGENT_VERBOSITY=2
+      - TRACE_SAMPLE_RATE=1.0
+
+# Staging-specific ingress host
+patchesJson6902:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: arctic-text2sql
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: api-staging.text2sql.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: api-staging.text2sql.example.com
+
+images:
+  - name: ghcr.io/sakeeb91/arctic-text2sql-agent
+    newTag: staging
