@@ -649,3 +649,117 @@ class InvalidConnectionStringException(DatabaseRegistryException):
             status_code=400,
             details=details,
         )
+
+
+# =============================================================================
+# Explanation Exceptions (Issue #15)
+# =============================================================================
+
+
+class ExplanationException(Text2SQLException):
+    """Base exception for explanation feature errors."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "EXPLANATION_ERROR",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code, status_code, details)
+
+
+class ExplanationGenerationException(ExplanationException):
+    """Failed to generate SQL explanation."""
+
+    def __init__(
+        self,
+        message: str = "Failed to generate query explanation",
+        sql: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        if sql:
+            error_details["sql_preview"] = sql[:100] + "..." if len(sql) > 100 else sql
+        super().__init__(
+            message=message,
+            error_code="EXPLANATION_GENERATION_ERROR",
+            status_code=500,
+            details=error_details,
+        )
+
+
+class SQLParsingException(ExplanationException):
+    """Failed to parse SQL for explanation."""
+
+    def __init__(
+        self,
+        message: str = "Failed to parse SQL query",
+        sql: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        if sql:
+            error_details["sql_preview"] = sql[:100] + "..." if len(sql) > 100 else sql
+        super().__init__(
+            message=message,
+            error_code="SQL_PARSING_ERROR",
+            status_code=400,
+            details=error_details,
+        )
+
+
+class VisualizationException(ExplanationException):
+    """Failed to generate query visualization."""
+
+    def __init__(
+        self,
+        message: str = "Failed to generate query visualization",
+        visualization_type: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        if visualization_type:
+            error_details["visualization_type"] = visualization_type
+        super().__init__(
+            message=message,
+            error_code="VISUALIZATION_ERROR",
+            status_code=500,
+            details=error_details,
+        )
+
+
+class ExecutionPlanException(ExplanationException):
+    """Failed to retrieve or parse execution plan."""
+
+    def __init__(
+        self,
+        message: str = "Failed to retrieve execution plan",
+        database_id: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error_details = details or {}
+        if database_id:
+            error_details["database_id"] = database_id
+        super().__init__(
+            message=message,
+            error_code="EXECUTION_PLAN_ERROR",
+            status_code=500,
+            details=error_details,
+        )
+
+
+class ExplanationNotFoundException(ExplanationException):
+    """Explanation not found for the given query ID."""
+
+    def __init__(
+        self,
+        query_id: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message=f"Explanation not found for query: {query_id}",
+            error_code="EXPLANATION_NOT_FOUND",
+            status_code=404,
+            details=details or {"query_id": query_id},
+        )
