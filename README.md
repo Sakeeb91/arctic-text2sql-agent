@@ -303,9 +303,10 @@ arctic-text2sql-agent/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/v1/query` | Generate SQL with agent reasoning |
-| POST | `/api/v1/query/execute` | Generate and execute SQL with validation |
+| POST | `/api/v1/query/batch` | Batch SQL generation |
+| POST | `/api/v1/query/stream` | Stream SQL generation results |
 | POST | `/api/v1/validate` | Validate SQL syntax and semantics |
-| GET | `/api/v1/schema` | Get database schema |
+| GET | `/api/v1/schema/{database_id}` | Get database schema |
 | POST | `/api/v1/schema/register` | Register new database |
 
 ### Agent-Specific Endpoints
@@ -315,12 +316,57 @@ arctic-text2sql-agent/
 | GET | `/api/v1/agent/reasoning/{query_id}` | Get detailed reasoning trace |
 | POST | `/api/v1/agent/retry` | Retry failed query with corrections |
 
+### Explanation & Visualization
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/explain` | Generate SQL explanation |
+| POST | `/api/v1/visualize` | Generate query visualization |
+| GET | `/api/v1/explain/{query_id}` | Retrieve cached explanation |
+| POST | `/api/v1/explain/batch` | Batch SQL explanation |
+
+### Database Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/databases` | Register new database |
+| GET | `/api/v1/databases` | List databases |
+| GET | `/api/v1/databases/{database_id}` | Get database details |
+| GET | `/api/v1/databases/{database_id}/health` | Check database health |
+| DELETE | `/api/v1/databases/{database_id}` | Unregister database |
+| GET | `/api/v1/databases/health/all` | Health check all databases |
+
+### Few-Shot Learning & Feedback
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/examples` | Add few-shot example |
+| POST | `/api/v1/examples/search` | Search examples |
+| GET | `/api/v1/examples` | List examples |
+| GET | `/api/v1/examples/{example_id}` | Get example |
+| PATCH | `/api/v1/examples/{example_id}` | Update example |
+| DELETE | `/api/v1/examples/{example_id}` | Delete example |
+| POST | `/api/v1/feedback` | Submit feedback |
+| GET | `/api/v1/feedback` | List feedback |
+| GET | `/api/v1/feedback/{feedback_id}` | Get feedback |
+| PATCH | `/api/v1/feedback/{feedback_id}/status` | Update feedback status |
+
+### Model Versioning
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/models/versions` | List model versions |
+| GET | `/api/v1/models/versions/active` | Get active model version |
+| GET | `/api/v1/models/versions/{version_id}` | Get version details |
+| POST | `/api/v1/models/versions` | Register model version |
+| POST | `/api/v1/models/versions/{version_id}/activate` | Activate model version |
+
 ### Management Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/health` | Health check |
-| GET | `/api/v1/metrics` | Prometheus metrics |
+| GET | `/monitoring/metrics` | Prometheus metrics |
 | GET | `/api/v1/models/info` | Model information |
 
 ---
@@ -346,9 +392,34 @@ AGENT_MAX_STEPS=5           # Maximum reasoning steps
 AGENT_ENABLE_VALIDATION=true
 AGENT_MIN_CONFIDENCE=0.7
 
+# Few-Shot Learning
+FEWSHOT_ENABLED=true
+FEWSHOT_EMBEDDING_STRATEGY=hash
+
+# Fine-Tuning
+FINETUNE_ENABLED=false
+FINETUNE_OUTPUT_DIR=./data/fine_tuning
+
+# Model Versioning
+MODEL_VERSION_ACTIVE_VERSION_ID=
+
 # Model Optimization
 MODEL_DEVICE=cuda  # or 'cpu', 'mps'
 ENABLE_8BIT_QUANTIZATION=false
+```
+
+---
+
+## Fine-Tuning Pipeline
+
+Export a dataset for fine-tuning and optionally run training:
+
+```bash
+# Export verified examples + feedback to JSONL
+python scripts/fine_tune.py --export-path data/fine_tuning
+
+# Run fine-tuning (requires FINETUNE_ENABLED=true)
+python scripts/fine_tune.py --train --register-version
 ```
 
 ---
