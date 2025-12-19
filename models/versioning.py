@@ -10,7 +10,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, cast
 
 from sqlalchemy import text
 
@@ -179,7 +180,7 @@ class ModelVersionManager:
         if not row:
             raise ModelVersionNotFoundException(version_id=version_id)
 
-        return self._row_to_version(row)
+        return self._row_to_version(cast(Mapping[str, Any], row))
 
     async def list_versions(
         self,
@@ -222,7 +223,7 @@ class ModelVersionManager:
             result = await session.execute(query, params)
             rows = result.mappings().all()
 
-        return [self._row_to_version(row) for row in rows]
+        return [self._row_to_version(cast(Mapping[str, Any], row)) for row in rows]
 
     async def get_active_version(self) -> ModelVersion | None:
         """Return active model version if set."""
@@ -253,7 +254,7 @@ class ModelVersionManager:
             )
             row = result.mappings().first()
 
-        return self._row_to_version(row) if row else None
+        return self._row_to_version(cast(Mapping[str, Any], row)) if row else None
 
     async def set_active_version(self, version_id: str) -> ModelVersion:
         """Set a model version as active."""
@@ -279,7 +280,8 @@ class ModelVersionManager:
                 },
             )
 
-        if result.rowcount == 0:
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise ModelVersionNotFoundException(version_id=version_id)
 
         logger.info("model_version_activated", version_id=version_id)
@@ -301,7 +303,7 @@ class ModelVersionManager:
         version = await self.get_version(configured_version)
         return version.model_name
 
-    def _row_to_version(self, row: dict[str, Any]) -> ModelVersion:
+    def _row_to_version(self, row: Mapping[str, Any]) -> ModelVersion:
         return ModelVersion(
             version_id=row["version_id"],
             model_name=row["model_name"],

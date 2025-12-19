@@ -7,7 +7,7 @@ This module provides:
 - Rate limit exceeded handling
 """
 
-from typing import Any
+from typing import Any, Callable, cast
 
 from fastapi import FastAPI, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -79,7 +79,8 @@ def setup_rate_limiting(app: FastAPI) -> None:
         >>> setup_rate_limiting(app)
     """
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    handler = cast(Callable[[Request, Exception], Any], _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, handler)
 
     logger.info(
         "rate_limiting_configured",

@@ -146,6 +146,7 @@ class QueryStreamer:
                 data={"stage": "generating", "progress": 0.1},
             )
 
+            engine: Any
             if use_agent:
                 from app.agent import get_agent_engine
 

@@ -12,7 +12,8 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, cast
 
 from sqlalchemy import text
 
@@ -215,7 +216,7 @@ class ExampleStore:
         if not row:
             raise ExampleNotFoundException(example_id=example_id)
 
-        return self._row_to_example(row)
+        return self._row_to_example(cast(Mapping[str, Any], row))
 
     async def list_examples(
         self,
@@ -264,7 +265,7 @@ class ExampleStore:
             result = await session.execute(query, params)
             rows = result.mappings().all()
 
-        return [self._row_to_example(row) for row in rows]
+        return [self._row_to_example(cast(Mapping[str, Any], row)) for row in rows]
 
     async def update_example(
         self,
@@ -305,7 +306,8 @@ class ExampleStore:
         async with self._db_manager.session() as session:
             result = await session.execute(query, params)
 
-        if result.rowcount == 0:
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise ExampleNotFoundException(example_id=example_id)
 
         logger.info("example_updated", example_id=example_id)
@@ -320,7 +322,8 @@ class ExampleStore:
         async with self._db_manager.session() as session:
             result = await session.execute(query, {"example_id": example_id})
 
-        if result.rowcount == 0:
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise ExampleNotFoundException(example_id=example_id)
 
         logger.info("example_deleted", example_id=example_id)
@@ -393,7 +396,7 @@ class ExampleStore:
         min_similarity = self._settings.few_shot.min_similarity
 
         for row in rows:
-            example = self._row_to_example(row)
+            example = self._row_to_example(cast(Mapping[str, Any], row))
             if not example.embedding:
                 continue
             similarity = cosine_similarity(query_embedding, example.embedding)
@@ -436,7 +439,7 @@ class ExampleStore:
             logger.warning("embedding_failed", error=str(e))
         return []
 
-    def _row_to_example(self, row: dict[str, Any]) -> ExampleRecord:
+    def _row_to_example(self, row: Mapping[str, Any]) -> ExampleRecord:
         return ExampleRecord(
             example_id=row["example_id"],
             natural_query=row["natural_query"],

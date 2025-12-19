@@ -10,7 +10,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, cast
 
 from sqlalchemy import text
 
@@ -181,7 +182,7 @@ class FeedbackStore:
         if not row:
             raise FeedbackNotFoundException(feedback_id=feedback_id)
 
-        return self._row_to_feedback(row)
+        return self._row_to_feedback(cast(Mapping[str, Any], row))
 
     async def list_feedback(
         self,
@@ -230,7 +231,7 @@ class FeedbackStore:
             result = await session.execute(query, params)
             rows = result.mappings().all()
 
-        return [self._row_to_feedback(row) for row in rows]
+        return [self._row_to_feedback(cast(Mapping[str, Any], row)) for row in rows]
 
     async def update_feedback_status(
         self,
@@ -255,7 +256,8 @@ class FeedbackStore:
                 {"feedback_id": feedback_id, "status": status.value},
             )
 
-        if result.rowcount == 0:
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise FeedbackNotFoundException(feedback_id=feedback_id)
 
         logger.info(
@@ -272,12 +274,13 @@ class FeedbackStore:
         async with self._db_manager.session() as session:
             result = await session.execute(query, {"feedback_id": feedback_id})
 
-        if result.rowcount == 0:
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise FeedbackNotFoundException(feedback_id=feedback_id)
 
         logger.info("feedback_deleted", feedback_id=feedback_id)
 
-    def _row_to_feedback(self, row: dict[str, Any]) -> FeedbackRecord:
+    def _row_to_feedback(self, row: Mapping[str, Any]) -> FeedbackRecord:
         return FeedbackRecord(
             feedback_id=row["feedback_id"],
             database_id=row["database_id"],
@@ -299,7 +302,8 @@ class FeedbackStore:
         if isinstance(value, dict):
             return value
         try:
-            return json.loads(value)
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
         except Exception:
             return {}
 

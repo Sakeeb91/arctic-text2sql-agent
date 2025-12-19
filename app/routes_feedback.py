@@ -17,7 +17,7 @@ from app.security import (
 )
 from app.security.input_validation import validate_sql_query
 from db.examples import get_example_store
-from db.feedback import FeedbackStatus, get_feedback_store
+from db.feedback import FeedbackRecord, FeedbackStatus, get_feedback_store
 
 logger = get_logger(__name__)
 
@@ -59,7 +59,7 @@ class FeedbackResponse(BaseModel):
     updated_at: str | None
 
     @classmethod
-    def from_record(cls, record) -> "FeedbackResponse":
+    def from_record(cls, record: FeedbackRecord) -> "FeedbackResponse":
         data = record.to_dict()
         return cls(**data)
 
@@ -207,7 +207,7 @@ async def _maybe_promote_feedback(
     logger.info("feedback_promoted_to_example", database_id=database_id)
 
 
-async def _maybe_promote_verified_feedback(record) -> None:
+async def _maybe_promote_verified_feedback(record: FeedbackRecord) -> None:
     settings = get_settings()
     if not settings.feedback.auto_promote_to_examples:
         return

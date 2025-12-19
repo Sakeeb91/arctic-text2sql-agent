@@ -122,6 +122,21 @@ module = "app.routes_databases"
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
+module = "app.routes_examples"
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "app.routes_feedback"
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "app.routes_models"
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
 module = "app.main"
 disallow_untyped_decorators = false
 
@@ -207,4 +222,3 @@ skips = [
     "B608",  # Skip hardcoded_sql_expressions (table names come from schema introspection, not user input)
     "B615",  # Skip huggingface_unsafe_download (model versioning handled via model name configuration)
 ]
-

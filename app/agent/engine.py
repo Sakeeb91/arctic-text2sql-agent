@@ -368,7 +368,7 @@ class AgentRunner:
         except AgentMaxStepsError as e:
             raise AgentMaxStepsExceededException(
                 max_steps=self._settings.agent.max_steps,
-                last_step=self._settings.agent.max_steps,
+                details={"max_steps": self._settings.agent.max_steps},
             ) from e
         except AgentError as e:
             raise AgentExecutionException(
@@ -379,7 +379,7 @@ class AgentRunner:
         if run_result.state == "max_steps_error":
             raise AgentMaxStepsExceededException(
                 max_steps=self._settings.agent.max_steps,
-                last_step=self._settings.agent.max_steps,
+                details={"max_steps": self._settings.agent.max_steps},
             )
 
         sql = self._extract_sql(run_result.output)

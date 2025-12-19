@@ -11,7 +11,7 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 import torch
 
@@ -108,7 +108,9 @@ class ModelEmbeddingProvider:
         """Return embedding dimensionality."""
         if not self._model_loader or not self._model_loader.is_loaded:
             return 0
-        return int(self._model_loader.model.get_input_embeddings().weight.shape[1])
+        embeddings = self._model_loader.model.get_input_embeddings()
+        weight = cast(Any, embeddings).weight
+        return int(weight.shape[1])
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed texts using the loaded model's token embeddings."""

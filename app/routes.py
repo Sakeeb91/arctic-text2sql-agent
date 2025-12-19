@@ -7,7 +7,7 @@ Issue #8: Added caching and streaming support for performance optimization.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -891,7 +891,7 @@ async def stream_sql_generation(
         max_rows=query_request.max_rows,
     )
 
-    return create_sse_response(event_generator)
+    return cast(StreamingResponse, create_sse_response(event_generator))
 
 
 # =============================================================================
