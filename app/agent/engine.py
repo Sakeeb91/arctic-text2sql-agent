@@ -507,7 +507,7 @@ class AgentText2SQL:
             return []
 
         try:
-            from app.few_shot import get_few_shot_service
+            from app.few_shot.service import get_few_shot_service
 
             service = await get_few_shot_service()
             return await service.get_prompt_examples(

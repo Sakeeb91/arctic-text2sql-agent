@@ -400,7 +400,7 @@ def create_sql_generator_tool(
                     await model_loader.load()
 
                 from app.config import get_settings
-                from app.few_shot import get_few_shot_service
+                from app.few_shot.service import get_few_shot_service
 
                 settings = get_settings()
                 few_shot_examples = []
