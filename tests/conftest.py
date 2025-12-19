@@ -55,9 +55,14 @@ def test_settings() -> Settings:
             cors_origins_list=["http://localhost:3000"],
         ),
         agent=MagicMock(
+            enabled=True,
+            use_legacy_fallback=True,
             max_steps=3,
             min_confidence=0.5,
             enable_validation=True,
+            execution_timeout=30,
+            verbosity=1,
+            query_history_size=100,
         ),
         security=MagicMock(
             secret_key="test-secret-key",
@@ -76,6 +81,10 @@ def test_settings() -> Settings:
         cache=MagicMock(
             redis_url=None,
             ttl=60,
+        ),
+        multi_database=MagicMock(
+            enabled=True,
+            allow_mutations=False,
         ),
     )
 

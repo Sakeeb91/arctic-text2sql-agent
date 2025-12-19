@@ -126,6 +126,14 @@ class AgentSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="AGENT_", extra="ignore")
 
+    enabled: bool = Field(
+        default=True,
+        description="Enable the smolagents agent for query endpoints",
+    )
+    use_legacy_fallback: bool = Field(
+        default=True,
+        description="Fall back to the legacy Text2SQLEngine on agent failure",
+    )
     max_steps: int = Field(
         default=5,
         ge=1,

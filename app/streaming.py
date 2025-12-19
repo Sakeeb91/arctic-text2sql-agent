@@ -19,6 +19,7 @@ from typing import Any
 
 from sse_starlette.sse import EventSourceResponse
 
+from app.config import get_settings
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -136,10 +137,8 @@ class QueryStreamer:
         )
 
         try:
-            # Import engine
-            from app.text2sql_engine import get_text2sql_engine
-
-            engine = await get_text2sql_engine()
+            settings = get_settings()
+            use_agent = settings.agent.enabled
 
             # Progress: Starting generation
             yield StreamEvent(
@@ -147,29 +146,53 @@ class QueryStreamer:
                 data={"stage": "generating", "progress": 0.1},
             )
 
-            # Generate SQL with streaming reasoning if requested
-            if show_reasoning:
-                # Stream reasoning steps
-                async for reasoning_event in self._stream_reasoning(
-                    engine, natural_query, database_id
-                ):
-                    yield reasoning_event
+            if use_agent:
+                from app.agent import get_agent_engine
+
+                engine = await get_agent_engine()
             else:
-                # Generate without streaming reasoning
+                from app.text2sql_engine import get_text2sql_engine
+
+                engine = await get_text2sql_engine()
+
+            # Generate SQL once, then stream reasoning if requested
+            try:
                 result = await engine.generate_sql(
                     natural_query=natural_query,
                     database_id=database_id,
                     execute=False,
-                    show_reasoning=False,
+                    show_reasoning=show_reasoning,
+                )
+            except Exception as agent_error:
+                if not use_agent or not settings.agent.use_legacy_fallback:
+                    raise
+                logger.warning(
+                    "streaming_agent_failed_fallback",
+                    error=str(agent_error),
+                    database_id=database_id,
+                )
+                from app.text2sql_engine import get_text2sql_engine
+
+                engine = await get_text2sql_engine()
+                use_agent = False
+                result = await engine.generate_sql(
+                    natural_query=natural_query,
+                    database_id=database_id,
+                    execute=False,
+                    show_reasoning=show_reasoning,
                 )
 
-                yield StreamEvent(
-                    event_type=StreamEventType.SQL_GENERATED,
-                    data={
-                        "sql": result.sql,
-                        "confidence": result.confidence,
-                    },
-                )
+            if show_reasoning:
+                async for reasoning_event in self._stream_reasoning_from_result(result):
+                    yield reasoning_event
+
+            yield StreamEvent(
+                event_type=StreamEventType.SQL_GENERATED,
+                data={
+                    "sql": result.sql,
+                    "confidence": result.confidence,
+                },
+            )
 
             # Progress: SQL generated
             yield StreamEvent(
@@ -179,10 +202,16 @@ class QueryStreamer:
 
             # Execute if requested
             if execute and result.sql:
-                async for exec_event in self._stream_execution(
-                    engine, result.sql, database_id, max_rows
-                ):
-                    yield exec_event
+                if use_agent:
+                    async for exec_event in self._stream_execution_agent(
+                        engine, result.sql, database_id, max_rows
+                    ):
+                        yield exec_event
+                else:
+                    async for exec_event in self._stream_execution_legacy(
+                        engine, result.sql, database_id, max_rows
+                    ):
+                        yield exec_event
 
             # Query complete
             yield StreamEvent(
@@ -204,34 +233,26 @@ class QueryStreamer:
                 },
             )
 
-    async def _stream_reasoning(
+    async def _stream_reasoning_from_result(
         self,
-        engine: Any,
-        natural_query: str,
-        database_id: str,
+        result: Any,
     ) -> AsyncGenerator[StreamEvent, None]:
-        """Stream reasoning steps during generation."""
-        # For now, use regular generation and emit steps
-        # In future, this could hook into agent's step-by-step execution
+        """Stream reasoning steps from a completed result."""
+        if not result.reasoning_trace:
+            return
 
-        yield StreamEvent(
-            event_type=StreamEventType.REASONING_STEP,
-            data={
-                "step": 1,
-                "thought": "Analyzing natural language query...",
-            },
-        )
-
-        result = await engine.generate_sql(
-            natural_query=natural_query,
-            database_id=database_id,
-            execute=False,
-            show_reasoning=True,
-        )
-
-        # Emit reasoning trace if available
-        if result.reasoning_trace:
-            for step in result.reasoning_trace:
+        for step in result.reasoning_trace:
+            if hasattr(step, "step_number"):
+                yield StreamEvent(
+                    event_type=StreamEventType.REASONING_STEP,
+                    data={
+                        "step": step.step_number,
+                        "thought": step.content,
+                        "action": step.tool_name,
+                        "observation": step.tool_output,
+                    },
+                )
+            else:
                 yield StreamEvent(
                     event_type=StreamEventType.REASONING_STEP,
                     data={
@@ -241,34 +262,21 @@ class QueryStreamer:
                         "observation": step.observation,
                     },
                 )
-                # Small delay between steps for smoother streaming
-                await asyncio.sleep(0.05)
+            await asyncio.sleep(0.05)
 
         yield StreamEvent(
             event_type=StreamEventType.REASONING_COMPLETE,
-            data={
-                "total_steps": (
-                    len(result.reasoning_trace) if result.reasoning_trace else 0
-                )
-            },
+            data={"total_steps": len(result.reasoning_trace)},
         )
 
-        yield StreamEvent(
-            event_type=StreamEventType.SQL_GENERATED,
-            data={
-                "sql": result.sql,
-                "confidence": result.confidence,
-            },
-        )
-
-    async def _stream_execution(
+    async def _stream_execution_legacy(
         self,
         engine: Any,
         sql: str,
         database_id: str,
         max_rows: int,
     ) -> AsyncGenerator[StreamEvent, None]:
-        """Stream query execution results."""
+        """Stream query execution results using the legacy engine."""
         yield StreamEvent(
             event_type=StreamEventType.QUERY_PROGRESS,
             data={"stage": "executing", "progress": 0.6},
@@ -318,6 +326,72 @@ class QueryStreamer:
                     event_type=StreamEventType.RESULT_COMPLETE,
                     data={"total_rows": 0, "row_count": 0},
                 )
+
+        except Exception as e:
+            logger.error("stream_execution_error", error=str(e))
+            yield StreamEvent(
+                event_type=StreamEventType.QUERY_ERROR,
+                data={
+                    "error": str(e),
+                    "stage": "execution",
+                },
+            )
+
+    async def _stream_execution_agent(
+        self,
+        engine: Any,
+        sql: str,
+        database_id: str,
+        max_rows: int,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """Stream query execution results using the agent execution path."""
+        yield StreamEvent(
+            event_type=StreamEventType.QUERY_PROGRESS,
+            data={"stage": "executing", "progress": 0.6},
+        )
+
+        try:
+            query_result = await engine.execute_sql(
+                sql=sql,
+                database_id=database_id,
+                max_rows=max_rows,
+            )
+
+            if not query_result.success:
+                yield StreamEvent(
+                    event_type=StreamEventType.QUERY_ERROR,
+                    data={
+                        "error": query_result.error or "Execution failed",
+                        "stage": "execution",
+                    },
+                )
+                return
+
+            rows = query_result.rows or []
+            total_rows = len(rows)
+
+            for batch_start in range(0, total_rows, self._batch_size):
+                batch_end = min(batch_start + self._batch_size, total_rows)
+                batch = rows[batch_start:batch_end]
+
+                yield StreamEvent(
+                    event_type=StreamEventType.RESULT_BATCH,
+                    data={
+                        "rows": batch,
+                        "batch_start": batch_start,
+                        "batch_end": batch_end,
+                        "total_rows": total_rows,
+                    },
+                )
+                await asyncio.sleep(0.01)
+
+            yield StreamEvent(
+                event_type=StreamEventType.RESULT_COMPLETE,
+                data={
+                    "total_rows": total_rows,
+                    "row_count": query_result.row_count,
+                },
+            )
 
         except Exception as e:
             logger.error("stream_execution_error", error=str(e))

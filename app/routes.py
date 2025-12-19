@@ -220,15 +220,77 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
         execute=query_request.execute,
         show_reasoning=query_request.show_reasoning,
     )
+    settings = get_settings()
 
-    # Import the Text2SQL engine
+    def build_reasoning_trace(steps: list[Any] | None) -> list[ReasoningStep] | None:
+        if not steps:
+            return None
+
+        reasoning: list[ReasoningStep] = []
+        for step in steps:
+            if hasattr(step, "step_number"):
+                reasoning.append(
+                    ReasoningStep(
+                        step=step.step_number,
+                        thought=step.content,
+                        action=step.tool_name,
+                        observation=step.tool_output,
+                    )
+                )
+            else:
+                reasoning.append(
+                    ReasoningStep(
+                        step=step.step,
+                        thought=step.thought,
+                        action=step.action,
+                        observation=step.observation,
+                    )
+                )
+        return reasoning
+
+    if settings.agent.enabled:
+        from app.agent import get_agent_engine
+
+        try:
+            agent_engine = await get_agent_engine()
+            agent_result = await agent_engine.generate_sql(
+                natural_query=query_request.query,
+                database_id=query_request.database_id,
+                execute=query_request.execute,
+                show_reasoning=query_request.show_reasoning,
+                max_rows=query_request.max_rows,
+            )
+
+            reasoning_trace = build_reasoning_trace(agent_result.reasoning_trace)
+            metadata = agent_result.metadata or {}
+
+            return QueryResponse(
+                sql=agent_result.sql,
+                confidence=agent_result.confidence,
+                execution_time_ms=agent_result.execution_time_ms,
+                dialect=metadata.get("dialect", "unknown"),
+                valid_syntax=metadata.get("valid_syntax", True),
+                validation_status=metadata.get("validation_status", "not_validated"),
+                results=agent_result.execution_results,
+                row_count=agent_result.row_count,
+                reasoning_trace=reasoning_trace,
+                warnings=agent_result.warnings,
+            )
+        except Exception as agent_error:
+            if not settings.agent.use_legacy_fallback:
+                raise
+            logger.warning(
+                "agent_generation_failed_fallback",
+                error=str(agent_error),
+                database_id=query_request.database_id,
+            )
+
+    # Fallback to legacy Text2SQL engine
     from app.text2sql_engine import get_text2sql_engine
 
     try:
-        # Get engine instance
         engine = await get_text2sql_engine()
 
-        # Generate SQL
         result = await engine.generate_sql(
             natural_query=query_request.query,
             database_id=query_request.database_id,
@@ -237,18 +299,7 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
             max_rows=query_request.max_rows,
         )
 
-        # Convert reasoning trace to response model
-        reasoning_trace = None
-        if result.reasoning_trace:
-            reasoning_trace = [
-                ReasoningStep(
-                    step=step.step,
-                    thought=step.thought,
-                    action=step.action,
-                    observation=step.observation,
-                )
-                for step in result.reasoning_trace
-            ]
+        reasoning_trace = build_reasoning_trace(result.reasoning_trace)
 
         return QueryResponse(
             sql=result.sql,
@@ -264,10 +315,8 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
         )
 
     except ModelInferenceException:
-        # Let custom exception handlers deal with this
         raise
     except SchemaNotFoundException:
-        # Let custom exception handlers deal with this
         raise
     except Exception as e:
         logger.error(

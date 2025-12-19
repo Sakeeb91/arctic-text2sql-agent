@@ -59,6 +59,8 @@ class TestAgentSettings:
     def test_default_values(self) -> None:
         """Test default agent settings."""
         settings = AgentSettings()
+        assert settings.enabled is True
+        assert settings.use_legacy_fallback is True
         assert settings.max_steps == 5
         assert settings.min_confidence == 0.7
         assert settings.enable_validation is True
