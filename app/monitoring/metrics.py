@@ -21,6 +21,7 @@ from prometheus_client import (
 from app.config import get_settings
 
 if TYPE_CHECKING:
+
     def _generate_latest(registry: CollectorRegistry) -> bytes: ...
 
     _CONTENT_TYPE_LATEST: str
