@@ -27,7 +27,7 @@ from app.agent.models import (
 from app.agent.tools import (
     result_validator,
 )
-from app.config import get_settings
+from app.config import FewShotSettings, get_settings
 from app.exceptions import (
     AgentExecutionException,
     AgentMaxStepsExceededException,
@@ -83,6 +83,11 @@ class AgentText2SQL:
         self._max_steps = max_steps or settings.agent.max_steps
         self._min_confidence = min_confidence or settings.agent.min_confidence
         self._verbosity = verbosity
+        self._few_shot_settings = (
+            settings.few_shot
+            if isinstance(settings.few_shot, FewShotSettings)
+            else FewShotSettings(enabled=False)
+        )
 
         # Query history for retry functionality
         self._query_history: dict[str, QueryHistoryEntry] = {}
@@ -180,7 +185,7 @@ class AgentText2SQL:
             )
 
             sql, confidence = await self._generate_sql_with_model(
-                natural_query, schema_description
+                natural_query, database_id, schema_description
             )
 
             reasoning_trace.append(
@@ -275,6 +280,7 @@ class AgentText2SQL:
                             improved_sql, improved_confidence = (
                                 await self._generate_sql_with_hints(
                                     natural_query,
+                                    database_id,
                                     schema_description,
                                     sql,
                                     validation_result.suggestions,
@@ -485,9 +491,37 @@ class AgentText2SQL:
         self._schema_cache[database_id] = description
         return description
 
+    async def _get_few_shot_examples(
+        self,
+        natural_query: str,
+        database_id: str,
+        attempt: int,
+    ) -> list[Any]:
+        """Retrieve few-shot examples for prompt construction."""
+        if not self._few_shot_settings.enabled:
+            return []
+
+        if attempt == 0 and not self._few_shot_settings.use_on_first_attempt:
+            return []
+        if attempt > 0 and not self._few_shot_settings.use_on_retry:
+            return []
+
+        try:
+            from app.few_shot import get_few_shot_service
+
+            service = await get_few_shot_service()
+            return await service.get_prompt_examples(
+                natural_query=natural_query,
+                database_id=database_id,
+            )
+        except Exception as e:
+            logger.warning("few_shot_retrieval_failed", error=str(e))
+            return []
+
     async def _generate_sql_with_model(
         self,
         natural_query: str,
+        database_id: str,
         schema_description: str,
     ) -> tuple[str, float]:
         """Generate SQL using the Text2SQL model."""
@@ -500,11 +534,18 @@ class AgentText2SQL:
         if not model_loader.is_loaded:
             await model_loader.load()
 
+        few_shot_examples = await self._get_few_shot_examples(
+            natural_query=natural_query,
+            database_id=database_id,
+            attempt=0,
+        )
         prompt = build_prompt(
             question=natural_query,
             schema=schema_description,
             template_type="arctic",
             dialect=self._db_manager.dialect,
+            few_shot_examples=few_shot_examples,
+            use_default_examples=self._few_shot_settings.include_default_examples,
         )
 
         inference_engine = InferenceEngine(model_loader)
@@ -515,6 +556,7 @@ class AgentText2SQL:
     async def _generate_sql_with_hints(
         self,
         natural_query: str,
+        database_id: str,
         schema_description: str,
         previous_sql: str,
         hints: list[str],
@@ -537,11 +579,17 @@ class AgentText2SQL:
         if not model_loader.is_loaded:
             await model_loader.load()
 
+        few_shot_examples = await self._get_few_shot_examples(
+            natural_query=natural_query,
+            database_id=database_id,
+            attempt=1,
+        )
         prompt = build_prompt(
             question=enhanced_question,
             schema=schema_description,
             template_type="arctic",
             dialect=self._db_manager.dialect,
+            few_shot_examples=few_shot_examples,
             use_default_examples=True,
         )
 
