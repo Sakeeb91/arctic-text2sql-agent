@@ -388,9 +388,12 @@ API_HOST=0.0.0.0
 API_PORT=8000
 
 # Agent Configuration
+AGENT_ENABLED=true          # Enable smolagents CodeAgent by default
+AGENT_USE_LEGACY_FALLBACK=true
 AGENT_MAX_STEPS=5           # Maximum reasoning steps
 AGENT_ENABLE_VALIDATION=true
 AGENT_MIN_CONFIDENCE=0.7
+AGENT_EXECUTION_TIMEOUT=30
 
 # Few-Shot Learning
 FEWSHOT_ENABLED=true

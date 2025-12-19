@@ -9,6 +9,9 @@
 
 After analyzing the [HuggingFace Text2SQL Agent](https://huggingface.co/docs/smolagents/en/examples/text_to_sql) and related [cookbook examples](https://huggingface.co/learn/cookbook/en/agent_text_to_sql), we've identified **critical architectural differences** that would significantly improve our system's robustness and accuracy.
 
+### Implementation Update (Issue #30)
+The API now wires a real smolagents `CodeAgent` into `/api/v1/query` and streaming by default, with feature flags for legacy fallback. The agent is built per request with schema-aware tools and emits structured reasoning steps, aligning the runtime architecture with the ReAct design described in this document.
+
 ### Key Finding
 **Our current approach is a "brittle pipeline"** while the agent approach provides **self-correction and iterative refinement**.
 
