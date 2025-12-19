@@ -81,6 +81,13 @@ from db.schema import (
     TableInfo,
     get_sample_data,
 )
+from db.examples import (
+    ExampleRecord,
+    ExampleSearchResult,
+    ExampleStore,
+    get_example_store,
+    reset_example_store,
+)
 
 __all__ = [
     # Connection management
@@ -94,6 +101,12 @@ __all__ = [
     "ColumnInfo",
     "ForeignKeyInfo",
     "get_sample_data",
+    # Few-shot examples (Issue #16)
+    "ExampleStore",
+    "ExampleRecord",
+    "ExampleSearchResult",
+    "get_example_store",
+    "reset_example_store",
     # Query execution
     "SafeQueryExecutor",
     "QueryResult",
