@@ -5,6 +5,7 @@ Agent model backends for local and remote inference.
 import asyncio
 from typing import Any, Coroutine, TypeVar
 
+from smolagents import InferenceClientModel
 from smolagents.models import ChatMessage, MessageRole, Model, get_clean_message_list
 from smolagents.monitoring import TokenUsage
 
@@ -128,3 +129,64 @@ class LocalInferenceModel(Model):
         if not self._model_loader.is_loaded:
             await self._model_loader.load()
         return await self._inference_engine.generate(prompt, extract_sql=False)
+
+
+class HFInferenceModel(InferenceClientModel):
+    """Instrumented Hugging Face Inference Providers backend."""
+
+    def __init__(
+        self,
+        model_id: str,
+        instrumentor: ModelInstrumentor,
+        provider: str | None = None,
+        token: str | None = None,
+        timeout: int = 120,
+        base_url: str | None = None,
+        bill_to: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            model_id=model_id,
+            provider=provider,
+            token=token,
+            timeout=timeout,
+            base_url=base_url,
+            bill_to=bill_to,
+            **kwargs,
+        )
+        self._instrumentor = instrumentor
+        self._last_confidence = 0.5
+        self._last_token_usage = TokenUsage(input_tokens=0, output_tokens=0)
+
+    @property
+    def last_confidence(self) -> float:
+        return self._last_confidence
+
+    @property
+    def last_token_usage(self) -> TokenUsage:
+        return self._last_token_usage
+
+    def generate(
+        self,
+        messages: list[ChatMessage | dict],
+        stop_sequences: list[str] | None = None,
+        response_format: dict[str, str] | None = None,
+        tools_to_call_from: list[Any] | None = None,
+        **kwargs: Any,
+    ) -> ChatMessage:
+        with self._instrumentor.trace_inference(
+            operation="code_agent"
+        ) as trace_context:
+            message = super().generate(
+                messages=messages,
+                stop_sequences=stop_sequences,
+                response_format=response_format,
+                tools_to_call_from=tools_to_call_from,
+                **kwargs,
+            )
+            if message.token_usage:
+                self._last_token_usage = message.token_usage
+                trace_context["input_tokens"] = message.token_usage.input_tokens
+                trace_context["output_tokens"] = message.token_usage.output_tokens
+            trace_context["confidence"] = self._last_confidence
+        return message
