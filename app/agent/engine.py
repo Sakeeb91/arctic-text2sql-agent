@@ -26,13 +26,8 @@ from app.agent.models import (
     ValidationOutcome,
     ValidationResult,
 )
-from app.agent.tools import (
-    create_schema_inspector_tool,
-    create_sql_executor_tool,
-    create_sql_generator_tool,
-    extract_sql_from_text,
-    result_validator,
-)
+from app.agent.tool_factory import build_agent_tools
+from app.agent.tools import extract_sql_from_text, result_validator
 from app.config import get_settings
 from app.exceptions import (
     AgentExecutionException,
@@ -198,27 +193,13 @@ class AgentRunner:
             instrumentor=self._instrumentor,
         )
 
-        tools = [
-            create_sql_executor_tool(
-                session_provider=db_context.session_provider,
-                schema_description=schema_description,
-                max_rows=max_rows,
-                execution_timeout=self._settings.agent.execution_timeout,
-                allow_mutations=self._settings.multi_database.allow_mutations,
-                database_id=db_context.database_id,
-            ),
-            create_schema_inspector_tool(
-                engine=db_context.engine,
-                database_id=db_context.database_id,
-            ),
-            result_validator,
-            create_sql_generator_tool(
-                model_loader=model_loader,
-                schema_description=schema_description,
-                database_id=db_context.database_id,
-                dialect=db_context.dialect,
-            ),
-        ]
+        tools = build_agent_tools(
+            settings=self._settings,
+            model_loader=model_loader,
+            schema_description=schema_description,
+            db_context=db_context,
+            max_rows=max_rows,
+        )
 
         instructions = self._build_instructions(db_context, execute)
         agent = CodeAgent(
