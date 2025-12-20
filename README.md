@@ -6,15 +6,15 @@ Transform natural language questions into accurate SQL queries with **multi-step
 
 ---
 
-## 🚨 Why Agent-Based Architecture?
+## Why Agent-Based Architecture?
 
 Traditional Text2SQL pipelines are **brittle**—they generate SQL in one shot with no validation. If the query is syntactically correct but semantically wrong, you get incorrect results with no warning.
 
 **Our agent-based approach** uses the **ReAct framework** (Reasoning + Acting) to:
-- 🤖 **Reason** about the query before generating SQL
-- 🔍 **Validate** results to ensure they make sense
-- 🔄 **Self-correct** when queries are wrong
-- 📊 **Achieve 50-70% higher accuracy** on complex queries
+- **Reason** about the query before generating SQL
+- **Validate** results to ensure they make sense
+- **Self-correct** when queries are wrong
+- **Achieve 50-70% higher accuracy** on complex queries
 
 ### Example: Agent Self-Correction in Action
 
@@ -24,7 +24,7 @@ Traditional Text2SQL pipelines are **brittle**—they generate SQL in one shot w
 ```sql
 SELECT name FROM waiters ORDER BY tips DESC LIMIT 1
 -- Returns: "John"
--- ❌ WRONG: This shows ONE tip, not TOTAL tips per waiter!
+-- WRONG: This shows ONE tip, not TOTAL tips per waiter!
 ```
 
 **Agent Approach** (Multi-step with self-correction):
@@ -39,7 +39,7 @@ Step 2 Action: SELECT name, SUM(tips) as total FROM tips
 Step 2 Observation: John: $450
 
 Step 3 Action: Validate results
-Step 3 Observation: VALID ✅
+Step 3 Observation: VALID
 
 Final Answer: John got the most tips ($450)
 ```
@@ -51,7 +51,7 @@ Final Answer: John got the most tips ($450)
 ## Overview
 
 Arctic Text2SQL Agent is a **production-ready AI agent** that translates natural language questions into SQL queries using:
-- **Snowflake Arctic-Text2SQL-R1-7B** model for SQL generation
+- **Snowflake Arctic-Text2SQL-R1-7B** model for SQL generation (or any HF-hosted model)
 - **HuggingFace smolagents** for multi-step reasoning and self-correction
 - **ReAct framework** for transparent decision-making
 - **FastAPI** for scalable REST API
@@ -60,29 +60,29 @@ Built with **security, accuracy, and developer experience** as top priorities.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-### 🤖 Agent Intelligence
+### Agent Intelligence
 - **Multi-Step Reasoning**: Agent breaks down complex queries into manageable steps
 - **Self-Correction**: Validates and fixes incorrect SQL automatically
 - **Output Inspection**: Checks if results actually answer the question
 - **Transparent Reasoning**: See agent's thought process for every query
 - **Tool-Based Architecture**: Modular, extensible design
 
-### 🎯 Accuracy & Reliability
+### Accuracy and Reliability
 - **Schema-Aware**: Automatically extracts and uses database schema
 - **Semantic Validation**: Catches queries that execute but return wrong data
 - **90%+ Accuracy**: On complex queries with joins and aggregations
 - **Zero Silent Failures**: Agent validates all outputs before returning
 
-### 🔒 Security & Production-Ready
+### Security and Production-Ready
 - **SQL Injection Prevention**: Parameterized queries only
 - **Input Validation**: Strict request validation with Pydantic
 - **Rate Limiting**: Prevent API abuse
 - **Comprehensive Monitoring**: Prometheus metrics and structured logging
 - **Error Handling**: Graceful degradation and retry logic
 
-### 🚀 Performance
+### Performance
 - **Query Caching**: Instant responses for repeated queries
 - **Model Quantization**: Run efficiently on 8GB GPUs
 - **Async Processing**: Handle 100+ QPS per instance
@@ -96,7 +96,7 @@ Built with **security, accuracy, and developer experience** as top priorities.
 
 - Python 3.10 or higher
 - HuggingFace account and API token
-- (Optional) CUDA-capable GPU for faster inference
+- (Optional) CUDA-capable GPU for local inference
 
 ### Installation
 
@@ -196,61 +196,66 @@ for step in result['reasoning_trace']:
 ### Agent-Based Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    FastAPI REST API                     │
-└───────────────────────┬─────────────────────────────────┘
-                        │
-        ┌───────────────▼────────────────┐
-        │      Agent Orchestrator        │
-        │   (CodeAgent + ReAct Loop)     │
-        └───────────────┬────────────────┘
-                        │
-        ┌───────────────┴────────────────┐
-        │                                │
-┌───────▼────────┐              ┌───────▼────────┐
-│  SQL Engine    │              │   Validator    │
-│  Tool          │              │   Tool         │
-│                │              │                │
-│ - Execute SQL  │              │ - Check results│
-│ - Get schema   │              │ - Suggest fix  │
-└───────┬────────┘              └───────┬────────┘
-        │                                │
-        └───────────────┬────────────────┘
-                        │
-        ┌───────────────▼────────────────┐
-        │     Database Manager           │
-        │  (PostgreSQL/MySQL/SQLite)     │
-        └────────────────────────────────┘
-                        │
-        ┌───────────────▼────────────────┐
-        │   Arctic Text2SQL Model        │
-        │ (Snowflake/Arctic-R1-7B)       │
-        └────────────────────────────────┘
++----------------------------------------------------------+
+|                    FastAPI REST API                       |
++----------------------------+-----------------------------+
+                             |
+             +---------------v----------------+
+             |      Agent Orchestrator        |
+             |   (CodeAgent + ReAct Loop)     |
+             +---------------+----------------+
+                             |
+             +---------------+----------------+
+             |                                |
+     +-------v--------+              +-------v--------+
+     |  SQL Engine    |              |   Validator    |
+     |  Tool          |              |   Tool         |
+     |                |              |                |
+     | - Execute SQL  |              | - Check results|
+     | - Get schema   |              | - Suggest fix  |
+     +-------+--------+              +-------+--------+
+             |                                |
+             +---------------+----------------+
+                             |
+             +---------------v----------------+
+             |     Database Manager           |
+             |  (PostgreSQL/MySQL/SQLite)     |
+             +---------------+----------------+
+                             |
+             +---------------v----------------+
+             |   Arctic Text2SQL Model        |
+             | (Snowflake/Arctic-R1-7B)       |
+             +--------------------------------+
 ```
 
 ### ReAct Loop Flow
 
 ```
 User Query
-    ↓
-┌─────────────────────┐
-│  1. THOUGHT         │ "I need to filter by state and amount"
-└─────────┬───────────┘
-          ↓
-┌─────────────────────┐
-│  2. ACTION          │ Execute: sql_engine(query)
-└─────────┬───────────┘
-          ↓
-┌─────────────────────┐
-│  3. OBSERVATION     │ "23 rows returned"
-└─────────┬───────────┘
-          ↓
-┌─────────────────────┐
-│  4. VALIDATION      │ Check: Do results make sense?
-└─────────┬───────────┘
-          ↓
-     [If Valid] → Return Results
-     [If Invalid] → Retry with corrections (back to step 1)
+    |
+    v
++---------------------+
+|  1. THOUGHT         | "I need to filter by state and amount"
++---------+-----------+
+          |
+          v
++---------------------+
+|  2. ACTION          | Execute: sql_engine(query)
++---------+-----------+
+          |
+          v
++---------------------+
+|  3. OBSERVATION     | "23 rows returned"
++---------+-----------+
+          |
+          v
++---------------------+
+|  4. VALIDATION      | Check: Do results make sense?
++---------+-----------+
+          |
+          v
+     [If Valid] -> Return Results
+     [If Invalid] -> Retry with corrections (back to step 1)
 ```
 
 ---
@@ -263,9 +268,8 @@ arctic-text2sql-agent/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI application entry
 │   ├── routes.py            # API endpoint definitions
-│   ├── agent_engine.py      # 🆕 Agent-based Text2SQL engine
+│   ├── agent/               # Agent-based Text2SQL engine
 │   ├── text2sql_engine.py   # Legacy single-shot engine
-│   ├── validators.py        # 🆕 Output validation logic
 │   ├── middleware.py        # Auth, logging, CORS
 │   └── exceptions.py        # Custom exception classes
 ├── db/
@@ -276,18 +280,15 @@ arctic-text2sql-agent/
 │   └── migrations/          # Alembic migrations
 ├── models/
 │   ├── __init__.py
-│   ├── loader.py            # Model loading & caching
+│   ├── loader.py            # Model loading and caching
 │   ├── inference.py         # Inference engine
 │   └── prompts.py           # Prompt templates
 ├── tests/
 │   ├── unit/                # Unit tests
 │   ├── integration/         # Integration tests
 │   └── conftest.py          # Test fixtures
-├── docs/
-│   ├── IMPLEMENTATION_PLAN.md          # Detailed implementation guide
-│   └── AGENT_ARCHITECTURE_COMPARISON.md # 🆕 Agent vs Pipeline analysis
-├── .github/
-│   └── workflows/           # CI/CD pipelines
+├── docs/                    # Documentation
+├── .github/workflows/       # CI/CD pipelines
 ├── requirements.txt         # Python dependencies
 ├── .env.example            # Environment variables template
 ├── Dockerfile              # Container configuration
@@ -316,7 +317,7 @@ arctic-text2sql-agent/
 | GET | `/api/v1/agent/reasoning/{query_id}` | Get detailed reasoning trace |
 | POST | `/api/v1/agent/retry` | Retry failed query with corrections |
 
-### Explanation & Visualization
+### Explanation and Visualization
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -336,7 +337,7 @@ arctic-text2sql-agent/
 | DELETE | `/api/v1/databases/{database_id}` | Unregister database |
 | GET | `/api/v1/databases/health/all` | Health check all databases |
 
-### Few-Shot Learning & Feedback
+### Few-Shot Learning and Feedback
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -376,9 +377,9 @@ arctic-text2sql-agent/
 Key environment variables (see `.env.example`):
 
 ```env
-# HuggingFace (local load + inference providers)
+# HuggingFace Configuration
 HUGGINGFACE_TOKEN=your_token_here
-TEXT2SQL_MODEL=Snowflake/Arctic-Text2SQL-R1-7B
+TEXT2SQL_MODEL=Qwen/Qwen2.5-Coder-7B-Instruct  # Or any HF-hosted model
 
 # Database
 DATABASE_URL=postgresql://user:pass@localhost:5432/db
@@ -388,36 +389,38 @@ API_HOST=0.0.0.0
 API_PORT=8000
 
 # Agent Configuration
-AGENT_ENABLED=true          # Enable smolagents CodeAgent by default
-AGENT_USE_LEGACY_FALLBACK=true
-AGENT_MAX_STEPS=5           # Maximum reasoning steps
+AGENT_ENABLED=true
+AGENT_MAX_STEPS=5
 AGENT_ENABLE_VALIDATION=true
 AGENT_MIN_CONFIDENCE=0.7
 AGENT_EXECUTION_TIMEOUT=30
-AGENT_MODEL_BACKEND=local   # local or hf_inference
-AGENT_INFERENCE_PROVIDER=hf-inference
+
+# Inference Backend (choose one)
+AGENT_MODEL_BACKEND=hf_inference  # Use HuggingFace Inference API (recommended)
+AGENT_INFERENCE_PROVIDER=         # Leave empty for auto-routing
 AGENT_INFERENCE_TIMEOUT=120
+AGENT_USE_LEGACY_FALLBACK=false
 
-# Few-Shot Learning
-FEWSHOT_ENABLED=true
-FEWSHOT_EMBEDDING_STRATEGY=hash
-
-# Fine-Tuning
-FINETUNE_ENABLED=false
-FINETUNE_OUTPUT_DIR=./data/fine_tuning
-
-# Model Versioning
-MODEL_VERSION_ACTIVE_VERSION_ID=
-
-# Model Optimization
+# Model Optimization (for local inference)
 MODEL_DEVICE=cuda  # or 'cpu', 'mps'
 ENABLE_8BIT_QUANTIZATION=false
 ```
 
-Notes for HF Inference Providers:
-- Set `AGENT_MODEL_BACKEND=hf_inference` to use Hugging Face Inference Providers.
-- Provide `HUGGINGFACE_TOKEN` (or `HF_TOKEN`) with access to Inference Providers.
-- Disable local fallback (`AGENT_USE_LEGACY_FALLBACK=false`) if you do not want local CPU inference.
+### Inference Backend Options
+
+**Option 1: HuggingFace Inference API (Recommended for getting started)**
+```env
+AGENT_MODEL_BACKEND=hf_inference
+AGENT_INFERENCE_PROVIDER=         # Empty = auto-select provider
+TEXT2SQL_MODEL=Qwen/Qwen2.5-Coder-7B-Instruct
+```
+
+**Option 2: Local Inference (Requires GPU)**
+```env
+AGENT_MODEL_BACKEND=local
+MODEL_DEVICE=cuda
+TEXT2SQL_MODEL=Snowflake/Arctic-Text2SQL-R1-7B
+```
 
 ---
 
@@ -509,20 +512,20 @@ docker-compose up -d
 - Configure monitoring and alerting (Prometheus + Grafana)
 - Implement rate limiting and authentication
 - Use HTTPS with proper SSL certificates
-- **Enable agent validation** for production reliability
+- Enable agent validation for production reliability
 
 ---
 
-## Performance & Accuracy
+## Performance and Accuracy
 
 ### Benchmarks
 
 | Metric | Pipeline Approach | Agent Approach | Improvement |
 |--------|------------------|----------------|-------------|
 | Simple Queries | 85% accuracy | 92% accuracy | +8% |
-| Complex Queries (Joins) | 60% accuracy | 90% accuracy | **+50%** |
-| Aggregations | 65% accuracy | 88% accuracy | **+35%** |
-| Silent Failures | 15% | <1% | **-93%** |
+| Complex Queries (Joins) | 60% accuracy | 90% accuracy | +50% |
+| Aggregations | 65% accuracy | 88% accuracy | +35% |
+| Silent Failures | 15% | <1% | -93% |
 | API Latency (p95) | 2s | 3-5s | +1-3s |
 | Model Load Time | <30s | <30s | - |
 | Memory Usage | ~7GB | ~7GB | - |
@@ -609,40 +612,12 @@ pip install -r requirements.txt -c constraints.txt
 export AGENT_MIN_CONFIDENCE=0.6
 ```
 
----
-
-## Roadmap
-
-### Phase 1.5 (Current - CRITICAL) 🔴
-- [x] Agent framework architecture design
-- [x] Agent architecture comparison analysis
-- [x] smolagents integration (Issue #18)
-- [ ] ReAct framework implementation
-- [ ] Self-correction mechanisms
-
-### Phase 2 - API & Security 🟡
-- [ ] Output validation & semantic checking (Issue #19)
-- [ ] FastAPI REST API with agent endpoints
-- [ ] Security implementation
-- [ ] Error handling & resilience
-
-### Phase 3 - Optimization 🟢
-- [ ] ReAct chain-of-thought logging (Issue #20)
-- [ ] Performance optimization
-- [ ] Comprehensive testing
-- [ ] Monitoring & observability
-
-### Future Enhancements
-- [ ] Multi-database query support (cross-database joins)
-- [ ] Query visualization and execution plan display
-- [ ] Natural language query explanations
-- [ ] Fine-tuning on domain-specific datasets
-- [ ] Web UI for interactive query building with reasoning display
-- [ ] Support for more SQL dialects
-- [ ] Query result export (CSV, Excel, JSON)
-- [ ] Query history and favorites with reasoning traces
-- [ ] Team collaboration features
-- [ ] Slack/Discord bot integration with agent responses
+**Issue**: HF Inference API returns 404
+```bash
+# Solution: Leave AGENT_INFERENCE_PROVIDER empty for auto-routing
+export AGENT_INFERENCE_PROVIDER=
+# Do NOT use 'hf-inference' - that is not a valid provider name
+```
 
 ---
 
@@ -701,9 +676,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/Sakeeb91/arctic-text2sql-agent/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Sakeeb91/arctic-text2sql-agent/discussions)
-- **Project Tracker**: [Issue #17](https://github.com/Sakeeb91/arctic-text2sql-agent/issues/17)
 - **Email**: rahman.sakeeb@gmail.com
-
----
-
-**Built with ❤️ for developers who want accurate, reliable Text2SQL with transparent AI reasoning**
