@@ -39,10 +39,12 @@ def build_agent_model(
                 "hf_inference_token_missing",
                 message="No HUGGINGFACE_TOKEN or HF_TOKEN configured for inference",
             )
+        # Convert empty string to None so HF router auto-selects provider
+        provider = settings.agent.inference_provider or None
         return HFInferenceModel(
             model_id=model_name,
             instrumentor=instrumentor,
-            provider=settings.agent.inference_provider,
+            provider=provider,
             token=settings.huggingface.token or None,
             timeout=settings.agent.inference_timeout,
             base_url=settings.agent.inference_base_url,
