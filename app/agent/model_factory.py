@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from app.agent.model_backends import HFInferenceModel, LocalInferenceModel
 from app.config import Settings
+from app.logging_config import get_logger
 from app.monitoring.model_instrumentation import ModelInstrumentor
+
+logger = get_logger(__name__)
 
 
 def _build_inference_kwargs(settings: Settings) -> dict[str, Any]:
@@ -30,6 +34,11 @@ def build_agent_model(
     backend = settings.agent.model_backend
 
     if backend == "hf_inference":
+        if not settings.huggingface.token and not os.getenv("HF_TOKEN"):
+            logger.warning(
+                "hf_inference_token_missing",
+                message="No HUGGINGFACE_TOKEN or HF_TOKEN configured for inference",
+            )
         return HFInferenceModel(
             model_id=model_name,
             instrumentor=instrumentor,
