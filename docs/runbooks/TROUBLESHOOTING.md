@@ -100,7 +100,7 @@ kubectl top pods -n arctic-text2sql
 
 | Cause | Solution |
 |-------|----------|
-| HF token missing | Set HUGGINGFACE_TOKEN secret |
+| HF token missing | Set HUGGINGFACE_TOKEN (or HF_TOKEN) secret |
 | Disk space full | Clear cache, increase PVC |
 | OOM during load | Enable quantization, increase memory |
 | Network timeout | Check internet access, retry |
