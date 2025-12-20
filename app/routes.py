@@ -279,6 +279,11 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
         except Exception as agent_error:
             if not settings.agent.use_legacy_fallback:
                 raise
+            if settings.agent.model_backend == "hf_inference":
+                logger.warning(
+                    "legacy_fallback_local_backend",
+                    message="Legacy fallback uses local inference backend",
+                )
             logger.warning(
                 "agent_generation_failed_fallback",
                 error=str(agent_error),
