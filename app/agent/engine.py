@@ -321,7 +321,9 @@ class AgentRunner:
             metadata={
                 "database_id": database_id,
                 "dialect": db_context.dialect,
-                "model_confidence": agent_model.last_confidence,
+                "model_confidence": model_confidence,
+                "model_backend": self._settings.agent.model_backend,
+                "inference_provider": self._settings.agent.inference_provider,
                 "valid_syntax": valid_syntax,
                 "validation_status": (
                     validation_result.outcome.value
