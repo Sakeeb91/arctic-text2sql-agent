@@ -170,11 +170,13 @@ def create_sql_executor_tool(
             )
             return error_msg
 
-    # Update the docstring with actual schema
-    sql_executor.__doc__ = sql_executor.__doc__.replace(
-        "{schema_placeholder}",
-        f"Available Database Schema:\n\n{schema_description}",
-    )
+    # Update the docstring with actual schema.
+    docstring = sql_executor.__doc__ or ""
+    schema_block = f"Available Database Schema:\n\n{schema_description}"
+    if "{schema_placeholder}" in docstring:
+        sql_executor.__doc__ = docstring.replace("{schema_placeholder}", schema_block)
+    else:
+        sql_executor.__doc__ = "\n\n".join([docstring.strip(), schema_block]).strip()
 
     return sql_executor
 
