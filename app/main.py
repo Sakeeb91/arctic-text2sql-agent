@@ -95,7 +95,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Load model (Phase 1.3: HuggingFace Model Integration)
     model_loaded = False
-    if settings.huggingface.token:
+    if settings.agent.model_backend == "hf_inference":
+        logger.info(
+            "model_loading_skipped",
+            message="Agent backend uses HF Inference Providers, skipping local model load",
+            provider=settings.agent.inference_provider,
+        )
+    elif settings.huggingface.token:
         logger.info(
             "model_loading",
             model_name=settings.huggingface.model_name,
