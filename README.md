@@ -414,6 +414,11 @@ MODEL_DEVICE=cuda  # or 'cpu', 'mps'
 ENABLE_8BIT_QUANTIZATION=false
 ```
 
+Notes for HF Inference Providers:
+- Set `AGENT_MODEL_BACKEND=hf_inference` to use Hugging Face Inference Providers.
+- Provide `HUGGINGFACE_TOKEN` (or `HF_TOKEN`) with access to Inference Providers.
+- Disable local fallback (`AGENT_USE_LEGACY_FALLBACK=false`) if you do not want local CPU inference.
+
 ---
 
 ## Fine-Tuning Pipeline
