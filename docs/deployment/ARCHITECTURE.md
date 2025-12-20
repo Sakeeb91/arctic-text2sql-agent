@@ -78,7 +78,7 @@ Arctic Text2SQL uses a microservices-based architecture designed for horizontal 
 The API layer consists of horizontally scalable FastAPI instances, each running:
 
 - **FastAPI Application**: REST API endpoints for Text2SQL operations
-- **ML Model**: Snowflake Arctic-Text2SQL-R1-7B model (loaded once per instance)
+- **ML Model**: Snowflake Arctic-Text2SQL-R1-7B model (loaded once per instance, or served via HF Inference Providers)
 - **ReAct Agent**: Multi-step reasoning with self-correction capabilities
 - **In-memory Cache**: Per-instance caching for frequently used schemas
 
