@@ -109,6 +109,10 @@ This document outlines a production-grade implementation of a Text-to-SQL system
    - Dialect-specific instructions (PostgreSQL, MySQL, SQLite)
    - Chain-of-thought prompting for complex queries
 
+4. **HF Inference Providers (GPU-free option)**
+   - smolagents `InferenceClientModel` backend for hosted inference
+   - Configure via `AGENT_MODEL_BACKEND=hf_inference` and token settings
+
 **Optimization Strategies**:
 ```python
 # Example: 8-bit quantization for memory efficiency
