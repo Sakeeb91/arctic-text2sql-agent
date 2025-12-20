@@ -7,13 +7,13 @@ pytest.importorskip("smolagents")
 from unittest.mock import MagicMock, patch
 
 from app.agent.model_factory import build_agent_model
-from app.config import Settings
+from app.config import AgentSettings, HuggingFaceSettings, Settings
 
 
 def _settings_overrides(agent_overrides: dict, hf_overrides: dict | None = None) -> Settings:
     return Settings(
-        agent=agent_overrides,
-        huggingface=hf_overrides or {},
+        agent=AgentSettings(**agent_overrides),
+        huggingface=HuggingFaceSettings(**(hf_overrides or {})),
     )
 
 
