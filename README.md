@@ -1,6 +1,6 @@
-# Arctic Text2SQL Agent
+# Text2SQL Agent
 
-> **Self-Correcting AI Agent** for Natural Language to SQL powered by Snowflake's Arctic-Text2SQL-R1 model and HuggingFace smolagents
+> **Self-Correcting AI Agent** for Natural Language to SQL powered by HuggingFace smolagents and the ReAct framework
 
 Transform natural language questions into accurate SQL queries with **multi-step reasoning**, **self-correction**, and **enterprise-grade reliability**.
 
@@ -50,8 +50,8 @@ Final Answer: John got the most tips ($450)
 
 ## Overview
 
-Arctic Text2SQL Agent is a **production-ready AI agent** that translates natural language questions into SQL queries using:
-- **Snowflake Arctic-Text2SQL-R1-7B** model for SQL generation (or any HF-hosted model)
+Text2SQL Agent is a **production-ready AI agent** that translates natural language questions into SQL queries using:
+- **Any HuggingFace-hosted LLM** for SQL generation (Qwen, Llama, Mistral, etc.)
 - **HuggingFace smolagents** for multi-step reasoning and self-correction
 - **ReAct framework** for transparent decision-making
 - **FastAPI** for scalable REST API
@@ -102,8 +102,8 @@ Built with **security, accuracy, and developer experience** as top priorities.
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/Sakeeb91/arctic-text2sql-agent.git
-cd arctic-text2sql-agent
+git clone https://github.com/Sakeeb91/text2sql-agent.git
+cd text2sql-agent
 ```
 
 2. **Create and activate virtual environment**:
@@ -223,8 +223,8 @@ for step in result['reasoning_trace']:
              +---------------+----------------+
                              |
              +---------------v----------------+
-             |   Arctic Text2SQL Model        |
-             | (Snowflake/Arctic-R1-7B)       |
+             |      Text2SQL LLM              |
+             | (Qwen, Llama, Mistral, etc.)   |
              +--------------------------------+
 ```
 
@@ -263,7 +263,7 @@ User Query
 ## Project Structure
 
 ```
-arctic-text2sql-agent/
+text2sql-agent/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI application entry
@@ -492,10 +492,10 @@ pre-commit run --all-files
 
 ```bash
 # Build image
-docker build -t arctic-text2sql-agent .
+docker build -t text2sql-agent .
 
 # Run container
-docker run -p 8000:8000 --env-file .env arctic-text2sql-agent
+docker run -p 8000:8000 --env-file .env text2sql-agent
 ```
 
 ### Docker Compose
@@ -674,6 +674,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/Sakeeb91/arctic-text2sql-agent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Sakeeb91/arctic-text2sql-agent/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Sakeeb91/text2sql-agent/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Sakeeb91/text2sql-agent/discussions)
 - **Email**: rahman.sakeeb@gmail.com
