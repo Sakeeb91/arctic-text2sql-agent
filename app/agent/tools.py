@@ -413,7 +413,7 @@ def create_sql_generator_tool(
 
     This tool uses the Snowflake Arctic model to generate SQL from
     natural language, providing an alternative to the agent's own
-    code generation.
+    code generation. It is only enabled for the local backend.
 
     Args:
         model_loader: Model loader with Text2SQL model
