@@ -376,7 +376,7 @@ arctic-text2sql-agent/
 Key environment variables (see `.env.example`):
 
 ```env
-# HuggingFace
+# HuggingFace (local load + inference providers)
 HUGGINGFACE_TOKEN=your_token_here
 TEXT2SQL_MODEL=Snowflake/Arctic-Text2SQL-R1-7B
 
@@ -394,6 +394,9 @@ AGENT_MAX_STEPS=5           # Maximum reasoning steps
 AGENT_ENABLE_VALIDATION=true
 AGENT_MIN_CONFIDENCE=0.7
 AGENT_EXECUTION_TIMEOUT=30
+AGENT_MODEL_BACKEND=local   # local or hf_inference
+AGENT_INFERENCE_PROVIDER=hf-inference
+AGENT_INFERENCE_TIMEOUT=120
 
 # Few-Shot Learning
 FEWSHOT_ENABLED=true
