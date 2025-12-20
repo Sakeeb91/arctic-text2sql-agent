@@ -172,6 +172,45 @@ class AgentSettings(BaseSettings):
         le=300,
         description="SQL execution timeout in seconds",
     )
+    model_backend: Literal["local", "hf_inference"] = Field(
+        default="local",
+        description="Agent model backend: local or Hugging Face Inference Providers",
+    )
+    inference_provider: str | None = Field(
+        default=None,
+        description="Inference Providers backend (e.g. hf-inference, together, fireworks)",
+    )
+    inference_timeout: int = Field(
+        default=120,
+        ge=1,
+        le=600,
+        description="Timeout for inference provider calls in seconds",
+    )
+    inference_base_url: str | None = Field(
+        default=None,
+        description="Override base URL for Hugging Face Inference Providers",
+    )
+    inference_bill_to: str | None = Field(
+        default=None,
+        description="Billing account/org for inference provider calls",
+    )
+    inference_max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum tokens for inference provider completions",
+    )
+    inference_temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature for inference provider completions",
+    )
+    inference_top_p: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Nucleus sampling for inference provider completions",
+    )
 
 
 class SecuritySettings(BaseSettings):
