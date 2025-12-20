@@ -7,23 +7,13 @@ pytest.importorskip("smolagents")
 from unittest.mock import MagicMock, patch
 
 from app.agent.model_factory import build_agent_model
-from app.config import AgentSettings, HuggingFaceSettings, Settings
+from app.config import Settings
 
 
-def _settings_overrides(agent_overrides: dict, hf_overrides: dict | None = None) -> Settings:
-    return Settings(
-        agent=AgentSettings(**agent_overrides),
-        huggingface=HuggingFaceSettings(**(hf_overrides or {})),
-    )
-
-
-def test_build_agent_model_local_backend() -> None:
-    settings = _settings_overrides(
-        {
-            "model_backend": "local",
-        },
-        {"model_name": "local-model"},
-    )
+def test_build_agent_model_local_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_MODEL_BACKEND", "local")
+    monkeypatch.setenv("TEXT2SQL_MODEL", "local-model")
+    settings = Settings()
 
     model_loader = MagicMock()
     instrumentor = MagicMock()
@@ -45,20 +35,18 @@ def test_build_agent_model_local_backend() -> None:
         )
 
 
-def test_build_agent_model_hf_inference_backend() -> None:
-    settings = _settings_overrides(
-        {
-            "model_backend": "hf_inference",
-            "inference_provider": "hf-inference",
-            "inference_timeout": 90,
-            "inference_base_url": "https://example.com",
-            "inference_bill_to": "test-org",
-            "inference_max_tokens": 256,
-            "inference_temperature": 0.2,
-            "inference_top_p": 0.9,
-        },
-        {"model_name": "remote-model", "token": "hf_token"},
-    )
+def test_build_agent_model_hf_inference_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_MODEL_BACKEND", "hf_inference")
+    monkeypatch.setenv("AGENT_INFERENCE_PROVIDER", "hf-inference")
+    monkeypatch.setenv("AGENT_INFERENCE_TIMEOUT", "90")
+    monkeypatch.setenv("AGENT_INFERENCE_BASE_URL", "https://example.com")
+    monkeypatch.setenv("AGENT_INFERENCE_BILL_TO", "test-org")
+    monkeypatch.setenv("AGENT_INFERENCE_MAX_TOKENS", "256")
+    monkeypatch.setenv("AGENT_INFERENCE_TEMPERATURE", "0.2")
+    monkeypatch.setenv("AGENT_INFERENCE_TOP_P", "0.9")
+    monkeypatch.setenv("TEXT2SQL_MODEL", "remote-model")
+    monkeypatch.setenv("HUGGINGFACE_TOKEN", "hf_token")
+    settings = Settings()
 
     model_loader = MagicMock()
     instrumentor = MagicMock()
