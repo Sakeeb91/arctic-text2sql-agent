@@ -17,7 +17,7 @@ from smolagents import CodeAgent
 from smolagents.agents import LogLevel
 from smolagents.utils import AgentError, AgentMaxStepsError
 
-from app.agent.model_backends import LocalInferenceModel
+from app.agent.model_factory import build_agent_model
 from app.agent.models import (
     AgentResult,
     AgentStep,
@@ -192,11 +192,9 @@ class AgentRunner:
         from models.loader import get_model_loader
 
         model_loader = await get_model_loader()
-        agent_model = LocalInferenceModel(
+        agent_model = build_agent_model(
+            settings=self._settings,
             model_loader=model_loader,
-            model_id=getattr(
-                getattr(self._settings, "huggingface", None), "model_name", None
-            ),
             instrumentor=self._instrumentor,
         )
 
@@ -306,8 +304,9 @@ class AgentRunner:
             except Exception as exec_error:
                 warnings.append(f"Execution warning: {exec_error!s}")
 
+        model_confidence = getattr(agent_model, "last_confidence", 0.5)
         confidence = self._calculate_confidence(
-            agent_model.last_confidence,
+            model_confidence,
             validation_result,
             total_steps,
         )
