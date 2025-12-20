@@ -54,8 +54,6 @@ class DatabaseContext:
     session_provider: Callable[[], Any]
 
 
-
-
 async def resolve_database_context(
     db_manager: DatabaseManager,
     database_id: str,

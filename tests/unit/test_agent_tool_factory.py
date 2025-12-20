@@ -30,11 +30,11 @@ def test_build_agent_tools_local_backend() -> None:
     model_loader = MagicMock()
     db_context = _db_context()
 
-    with patch("app.agent.tool_factory.create_sql_executor_tool") as exec_tool, patch(
-        "app.agent.tool_factory.create_schema_inspector_tool"
-    ) as schema_tool, patch(
-        "app.agent.tool_factory.create_sql_generator_tool"
-    ) as generator_tool:
+    with (
+        patch("app.agent.tool_factory.create_sql_executor_tool") as exec_tool,
+        patch("app.agent.tool_factory.create_schema_inspector_tool") as schema_tool,
+        patch("app.agent.tool_factory.create_sql_generator_tool") as generator_tool,
+    ):
         exec_tool.return_value = "executor"
         schema_tool.return_value = "schema"
         generator_tool.return_value = "generator"
@@ -56,11 +56,11 @@ def test_build_agent_tools_hf_inference_backend() -> None:
     model_loader = MagicMock()
     db_context = _db_context()
 
-    with patch("app.agent.tool_factory.create_sql_executor_tool") as exec_tool, patch(
-        "app.agent.tool_factory.create_schema_inspector_tool"
-    ) as schema_tool, patch(
-        "app.agent.tool_factory.create_sql_generator_tool"
-    ) as generator_tool:
+    with (
+        patch("app.agent.tool_factory.create_sql_executor_tool") as exec_tool,
+        patch("app.agent.tool_factory.create_schema_inspector_tool") as schema_tool,
+        patch("app.agent.tool_factory.create_sql_generator_tool") as generator_tool,
+    ):
         exec_tool.return_value = "executor"
         schema_tool.return_value = "schema"
 

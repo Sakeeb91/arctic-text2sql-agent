@@ -35,7 +35,9 @@ def test_build_agent_model_local_backend(monkeypatch: pytest.MonkeyPatch) -> Non
         )
 
 
-def test_build_agent_model_hf_inference_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_agent_model_hf_inference_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("AGENT_MODEL_BACKEND", "hf_inference")
     monkeypatch.setenv("AGENT_INFERENCE_PROVIDER", "hf-inference")
     monkeypatch.setenv("AGENT_INFERENCE_TIMEOUT", "90")
