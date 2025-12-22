@@ -275,8 +275,12 @@ class CacheManager:
                         self._stats.hits += 1
                         elapsed = (time.perf_counter() - start_time) * 1000
                         self._update_hit_time(elapsed)
+                        self._record_cache_operation(
+                            namespace.value, "get", "hit", elapsed / 1000
+                        )
                         logger.debug("cache_hit", key=key, namespace=namespace.value)
                         return entry.value
+                    self._record_cache_eviction(namespace.value, "expired")
 
             # Fall back to in-memory cache
             if full_key in self._in_memory_cache:
@@ -285,20 +289,28 @@ class CacheManager:
                     self._stats.hits += 1
                     elapsed = (time.perf_counter() - start_time) * 1000
                     self._update_hit_time(elapsed)
+                    self._record_cache_operation(
+                        namespace.value, "get", "hit", elapsed / 1000
+                    )
                     logger.debug("cache_hit_memory", key=key, namespace=namespace.value)
                     return entry.value
                 else:
                     # Clean up expired entry
                     del self._in_memory_cache[full_key]
+                    self._record_cache_eviction(namespace.value, "expired")
 
             self._stats.misses += 1
             elapsed = (time.perf_counter() - start_time) * 1000
             self._update_miss_time(elapsed)
+            self._record_cache_operation(
+                namespace.value, "get", "miss", elapsed / 1000
+            )
             logger.debug("cache_miss", key=key, namespace=namespace.value)
             return None
 
         except Exception as e:
             self._stats.errors += 1
+            self._record_cache_error(namespace.value, type(e).__name__)
             logger.warning("cache_get_error", key=key, error=str(e))
             return None
 
@@ -350,13 +362,16 @@ class CacheManager:
                     namespace=namespace.value,
                     ttl=effective_ttl,
                 )
+                self._record_cache_operation(
+                    namespace.value, "set", "success", 0.0
+                )
                 return True
 
             # Fall back to in-memory cache
             async with self._lock:
                 self._in_memory_cache[full_key] = entry
                 # Limit in-memory cache size
-                if len(self._in_memory_cache) > 1000:
+                if len(self._in_memory_cache) > self._max_memory_entries:
                     await self._evict_oldest()
 
             logger.debug(
@@ -365,10 +380,13 @@ class CacheManager:
                 namespace=namespace.value,
                 ttl=effective_ttl,
             )
+            self._record_cache_operation(namespace.value, "set", "success", 0.0)
             return True
 
         except Exception as e:
             self._stats.errors += 1
+            self._record_cache_error(namespace.value, type(e).__name__)
+            self._record_cache_operation(namespace.value, "set", "error", 0.0)
             logger.warning("cache_set_error", key=key, error=str(e))
             return False
 
@@ -404,10 +422,18 @@ class CacheManager:
             logger.debug(
                 "cache_delete", key=key, namespace=namespace.value, deleted=deleted
             )
+            self._record_cache_operation(
+                namespace.value,
+                "delete",
+                "success" if deleted else "miss",
+                0.0,
+            )
             return deleted
 
         except Exception as e:
             self._stats.errors += 1
+            self._record_cache_error(namespace.value, type(e).__name__)
+            self._record_cache_operation(namespace.value, "delete", "error", 0.0)
             logger.warning("cache_delete_error", key=key, error=str(e))
             return False
 
@@ -445,10 +471,12 @@ class CacheManager:
                 namespace=namespace.value,
                 deleted_count=deleted_count,
             )
+            self._record_cache_eviction(namespace.value, "manual")
             return deleted_count
 
         except Exception as e:
             self._stats.errors += 1
+            self._record_cache_error(namespace.value, type(e).__name__)
             logger.warning(
                 "cache_invalidate_error", namespace=namespace.value, error=str(e)
             )
@@ -468,27 +496,60 @@ class CacheManager:
 
             self._in_memory_cache.clear()
             logger.info("cache_cleared")
+            self._record_cache_eviction("all", "manual")
             return True
 
         except Exception as e:
             self._stats.errors += 1
+            self._record_cache_error("all", type(e).__name__)
             logger.warning("cache_clear_error", error=str(e))
             return False
 
     async def _evict_oldest(self) -> None:
         """Evict oldest entries from in-memory cache."""
-        if len(self._in_memory_cache) <= 500:
+        if len(self._in_memory_cache) <= self._max_memory_entries:
             return
 
-        # Sort by creation time and remove oldest 200 entries
+        evict_count = len(self._in_memory_cache) - self._max_memory_entries
+        if evict_count <= 0:
+            return
+
+        # Sort by creation time and remove oldest entries
         sorted_entries = sorted(
             self._in_memory_cache.items(),
             key=lambda x: x[1].created_at,
         )
-        for key, _ in sorted_entries[:200]:
+        for key, entry in sorted_entries[:evict_count]:
             del self._in_memory_cache[key]
+            self._record_cache_eviction(entry.namespace, "size_limit")
 
-        logger.debug("cache_evicted", count=200)
+        logger.debug("cache_evicted", count=evict_count)
+
+    def _record_cache_operation(
+        self,
+        namespace: str,
+        operation: str,
+        result: str,
+        duration_seconds: float,
+    ) -> None:
+        if not self._metrics_enabled:
+            return
+        self._metrics.record_cache_operation(
+            namespace=namespace,
+            operation=operation,
+            result=result,
+            duration_seconds=duration_seconds,
+        )
+
+    def _record_cache_error(self, namespace: str, error_type: str) -> None:
+        if not self._metrics_enabled:
+            return
+        self._metrics.record_cache_error(namespace=namespace, error_type=error_type)
+
+    def _record_cache_eviction(self, namespace: str, reason: str) -> None:
+        if not self._metrics_enabled:
+            return
+        self._metrics.record_cache_eviction(namespace=namespace, reason=reason)
 
     def _update_hit_time(self, elapsed_ms: float) -> None:
         """Update average hit time."""
@@ -634,6 +695,85 @@ def cached(
 # =============================================================================
 # Specialized Cache Functions
 # =============================================================================
+
+
+async def cache_prompt(
+    prompt_key: str,
+    prompt: str,
+    ttl: int | None = None,
+) -> bool:
+    """
+    Cache a generated prompt.
+
+    Args:
+        prompt_key: Cache key for the prompt
+        prompt: Prompt string
+        ttl: Optional TTL override
+
+    Returns:
+        True if cached successfully
+    """
+    cache = await get_cache_manager()
+    data = {
+        "prompt": prompt,
+        "cached_at": time.time(),
+    }
+    return await cache.set(prompt_key, data, CacheNamespace.PROMPT, ttl)
+
+
+async def get_cached_prompt(prompt_key: str) -> str | None:
+    """
+    Get cached prompt.
+
+    Args:
+        prompt_key: Cache key for the prompt
+
+    Returns:
+        Cached prompt string or None
+    """
+    cache = await get_cache_manager()
+    cached = await cache.get(prompt_key, CacheNamespace.PROMPT)
+    if isinstance(cached, dict):
+        return cached.get("prompt")
+    return None
+
+
+async def cache_inference_result(
+    prompt_hash: str,
+    result: dict[str, Any],
+    ttl: int | None = None,
+) -> bool:
+    """
+    Cache model inference result.
+
+    Args:
+        prompt_hash: Hash of the input prompt
+        result: Inference result payload
+        ttl: Optional TTL override
+
+    Returns:
+        True if cached successfully
+    """
+    cache = await get_cache_manager()
+    payload = dict(result)
+    payload["cached_at"] = time.time()
+    return await cache.set(prompt_hash, payload, CacheNamespace.INFERENCE, ttl)
+
+
+async def get_cached_inference_result(
+    prompt_hash: str,
+) -> dict[str, Any] | None:
+    """
+    Get cached inference result.
+
+    Args:
+        prompt_hash: Hash of the input prompt
+
+    Returns:
+        Cached inference result or None
+    """
+    cache = await get_cache_manager()
+    return await cache.get(prompt_hash, CacheNamespace.INFERENCE)
 
 
 async def cache_query_result(
