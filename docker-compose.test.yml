@@ -1,0 +1,168 @@
+# Docker Compose configuration for E2E testing
+# Usage: docker-compose -f docker-compose.test.yml up -d
+
+version: "3.8"
+
+services:
+  # Test PostgreSQL database
+  test-postgres:
+    image: postgres:15-alpine
+    container_name: arctic-test-postgres
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - test-postgres-data:/var/lib/postgresql/data
+    networks:
+      - test-network
+
+  # Test MySQL database
+  test-mysql:
+    image: mysql:8.0
+    container_name: arctic-test-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test_password
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "test_user", "-ptest_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - test-mysql-data:/var/lib/mysql
+    networks:
+      - test-network
+
+  # Redis for caching tests
+  test-redis:
+    image: redis:7-alpine
+    container_name: arctic-test-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # E2E test runner
+  e2e-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: arctic-e2e-runner
+    environment:
+      # E2E Configuration
+      E2E_TESTS_ENABLED: "true"
+      E2E_DATABASE_URL: "postgresql+asyncpg://test_user:test_password@test-postgres:5432/test_db"
+      E2E_USE_REAL_MODEL: "false"
+
+      # Application settings
+      DATABASE_URL: "postgresql+asyncpg://test_user:test_password@test-postgres:5432/test_db"
+      HUGGINGFACE_TOKEN: "${HUGGINGFACE_TOKEN:-dummy_token}"
+      SECRET_KEY: "e2e-test-secret-key"
+
+      # Auth settings
+      AUTH_ENABLED: "true"
+      JWT_AUTH_ENABLED: "true"
+      API_KEY_AUTH_ENABLED: "true"
+      API_KEYS: "test-api-key:read|write|admin"
+
+      # Agent settings
+      AGENT_ENABLED: "true"
+      AGENT_MAX_STEPS: "5"
+      AGENT_MIN_CONFIDENCE: "0.5"
+
+      # Multi-database settings
+      MULTIDB_ENABLED: "true"
+
+      # Cache settings
+      CACHE_ENABLED: "false"
+      CACHE_REDIS_URL: "redis://test-redis:6379/0"
+
+      # Test databases
+      TEST_POSTGRES_URL: "postgresql+asyncpg://test_user:test_password@test-postgres:5432/test_db"
+      TEST_MYSQL_URL: "mysql+aiomysql://test_user:test_password@test-mysql:3306/test_db"
+    volumes:
+      - .:/app
+      - /app/.venv  # Exclude virtual environment
+    depends_on:
+      test-postgres:
+        condition: service_healthy
+      test-mysql:
+        condition: service_healthy
+      test-redis:
+        condition: service_healthy
+    networks:
+      - test-network
+    command: >
+      sh -c "
+        echo 'Waiting for databases to be ready...'
+        sleep 5
+        echo 'Running E2E tests...'
+        pytest tests/e2e/ -v --tb=short -m 'e2e' 2>&1 | tee /app/e2e-test-results.log
+        exit_code=$$?
+        echo 'E2E tests completed with exit code: '$$exit_code
+        exit $$exit_code
+      "
+
+  # Performance test runner (separate for isolation)
+  perf-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: arctic-perf-runner
+    environment:
+      E2E_TESTS_ENABLED: "true"
+      E2E_DATABASE_URL: "postgresql+asyncpg://test_user:test_password@test-postgres:5432/test_db"
+      DATABASE_URL: "postgresql+asyncpg://test_user:test_password@test-postgres:5432/test_db"
+      HUGGINGFACE_TOKEN: "${HUGGINGFACE_TOKEN:-dummy_token}"
+      SECRET_KEY: "perf-test-secret-key"
+      AUTH_ENABLED: "true"
+      API_KEY_AUTH_ENABLED: "true"
+      API_KEYS: "test-api-key:read|write|admin"
+      AGENT_ENABLED: "true"
+      MULTIDB_ENABLED: "true"
+      CACHE_ENABLED: "false"
+    volumes:
+      - .:/app
+      - /app/.venv
+    depends_on:
+      test-postgres:
+        condition: service_healthy
+    networks:
+      - test-network
+    profiles:
+      - performance
+    command: >
+      sh -c "
+        echo 'Running performance tests...'
+        pytest tests/e2e/test_performance_e2e.py -v --tb=short -m 'e2e_performance' 2>&1 | tee /app/perf-test-results.log
+        exit_code=$$?
+        echo 'Performance tests completed with exit code: '$$exit_code
+        exit $$exit_code
+      "
+
+volumes:
+  test-postgres-data:
+  test-mysql-data:
+
+networks:
+  test-network:
+    driver: bridge
