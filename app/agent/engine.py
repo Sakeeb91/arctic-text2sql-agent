@@ -98,6 +98,8 @@ async def execute_sql_with_context(
             allow_mutations=allow_mutations,
             timeout_seconds=timeout_seconds,
             max_rows=max_rows,
+            database_id=db_context.database_id,
+            dialect=db_context.dialect,
         )
         return await executor.execute(sql)
 
