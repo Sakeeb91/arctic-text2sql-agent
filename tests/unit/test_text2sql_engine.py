@@ -526,6 +526,8 @@ class TestText2SQLEngine:
                 session=session,
                 allow_mutations=False,
                 max_rows=5,
+                database_id="test_db",
+                dialect="postgresql",
             )
             executor.execute.assert_awaited_once_with("SELECT 1")
 
