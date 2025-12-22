@@ -118,6 +118,51 @@ class TestQueryStreamer:
         assert streamer._heartbeat_interval == 15.0
 
 
+class TestQueryStreamerExecution:
+    """Tests for streaming execution paths."""
+
+    @pytest.mark.asyncio
+    async def test_stream_execution_legacy_batches_results(self) -> None:
+        """Test legacy execution streams batched results without regeneration."""
+        from db.executor import QueryResult
+
+        streamer = QueryStreamer(batch_size=2)
+        query_result = QueryResult(
+            success=True,
+            sql="SELECT 1",
+            rows=[{"id": 1}, {"id": 2}, {"id": 3}],
+            row_count=3,
+        )
+
+        class StubEngine:
+            def __init__(self) -> None:
+                self.called_with: tuple[str, str, int] | None = None
+
+            async def execute_sql(
+                self,
+                sql: str,
+                database_id: str,
+                max_rows: int,
+            ) -> QueryResult:
+                self.called_with = (sql, database_id, max_rows)
+                return query_result
+
+            async def generate_sql(self, *args, **kwargs) -> None:
+                raise AssertionError("generate_sql should not be called")
+
+        engine = StubEngine()
+
+        events = await collect_events(
+            streamer._stream_execution_legacy(engine, "SELECT 1", "db1", max_rows=5)
+        )
+
+        assert engine.called_with == ("SELECT 1", "db1", 5)
+        assert events[0].event_type == StreamEventType.QUERY_PROGRESS
+        batch_events = [event for event in events if event.event_type == StreamEventType.RESULT_BATCH]
+        assert len(batch_events) == 2
+        assert events[-1].event_type == StreamEventType.RESULT_COMPLETE
+
+
 class TestStreamResults:
     """Tests for stream_results function."""
 
