@@ -694,6 +694,7 @@ class Text2SQLEngine:
                 execution_results, row_count = await self._execute_sql(
                     inference_result.sql,
                     max_rows,
+                    database_id=database_id,
                 )
                 if show_reasoning:
                     reasoning_trace[-1].observation = f"Query returned {row_count} rows"
@@ -1033,6 +1034,7 @@ class Text2SQLEngine:
         self,
         sql: str,
         max_rows: int,
+        database_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         """
         Execute validated SQL query.
@@ -1044,7 +1046,11 @@ class Text2SQLEngine:
         Returns:
             Tuple of (results list, row count)
         """
-        result = await self.execute_sql(sql=sql, max_rows=max_rows)
+        result = await self.execute_sql(
+            sql=sql,
+            database_id=database_id,
+            max_rows=max_rows,
+        )
         return result.rows, result.row_count
 
     def invalidate_schema_cache(self, database_id: str | None = None) -> None:
