@@ -79,6 +79,12 @@ Notes:
 - If SQL generation returns an empty string and `execute=true`, a `query_error` event is emitted and the stream ends.
 - Results are capped by `max_rows` and streamed in fixed-size batches (default 100 rows).
 
+Example SSE event:
+```
+event: sql_generated
+data: {"event":"sql_generated","data":{"sql":"SELECT 1","confidence":0.92},"timestamp":1734370000.0}
+```
+
 ### Validate SQL
 
 Validate SQL syntax and semantics without execution.
