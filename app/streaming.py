@@ -317,6 +317,16 @@ class QueryStreamer:
                 max_rows,
             )
 
+            if not result.success:
+                yield StreamEvent(
+                    event_type=StreamEventType.QUERY_ERROR,
+                    data={
+                        "error": result.error or "Execution failed",
+                        "stage": "execution",
+                    },
+                )
+                return
+
             if result.rows:
                 rows = result.rows
                 total_rows = len(rows)
