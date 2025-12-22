@@ -104,6 +104,26 @@ POST /api/v1/validate
 
 ---
 
+## Authentication Endpoints
+
+### Issue Token
+
+Issue a JWT access token using credentials configured in `AUTH_USERS`.
+
+```http
+POST /api/v1/auth/token
+```
+
+**Request Body:**
+```json
+{
+    "username": "admin",
+    "password": "change_me"
+}
+```
+
+---
+
 ## Schema Endpoints
 
 ### Get Schema
