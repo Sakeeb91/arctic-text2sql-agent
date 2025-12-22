@@ -4,13 +4,15 @@ Few-shot example repository API routes (Issue #16).
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.exceptions import ValidationException
 from app.logging_config import get_logger
 from app.security import (
     limiter,
+    require_auth,
+    require_mutation_scope,
     validate_database_id,
     validate_natural_language_query,
 )
@@ -19,7 +21,11 @@ from db.examples import ExampleRecord, ExampleSearchResult, get_example_store
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/examples", tags=["Few-Shot Examples"])
+router = APIRouter(
+    prefix="/api/v1/examples",
+    tags=["Few-Shot Examples"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 class ExampleCreateRequest(BaseModel):
@@ -77,10 +83,15 @@ class ExampleSearchResponse(BaseModel):
     results: list[dict[str, Any]]
 
 
-@router.post("", response_model=ExampleResponse)
+@router.post(
+    "",
+    response_model=ExampleResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def create_example(
-    request: Request, example_request: ExampleCreateRequest
+    request: Request,
+    example_request: ExampleCreateRequest,
 ) -> ExampleResponse:
     """Create a new few-shot example."""
     is_valid_query, query_errors = validate_natural_language_query(
@@ -129,7 +140,10 @@ async def create_example(
 
 @router.get("/{example_id}", response_model=ExampleResponse)
 @limiter.limit("30/minute")
-async def get_example(request: Request, example_id: str) -> ExampleResponse:
+async def get_example(
+    request: Request,
+    example_id: str,
+) -> ExampleResponse:
     """Retrieve a specific example."""
     store = await get_example_store()
     record = await store.get_example(example_id)
@@ -159,7 +173,8 @@ async def list_examples(
 @router.post("/search", response_model=ExampleSearchResponse)
 @limiter.limit("20/minute")
 async def search_examples(
-    request: Request, search_request: ExampleSearchRequest
+    request: Request,
+    search_request: ExampleSearchRequest,
 ) -> ExampleSearchResponse:
     """Search for relevant examples."""
     store = await get_example_store()
@@ -173,10 +188,16 @@ async def search_examples(
     return ExampleSearchResponse(results=[result.to_dict() for result in results])
 
 
-@router.patch("/{example_id}", response_model=ExampleResponse)
+@router.patch(
+    "/{example_id}",
+    response_model=ExampleResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def update_example(
-    request: Request, example_id: str, update_request: ExampleUpdateRequest
+    request: Request,
+    example_id: str,
+    update_request: ExampleUpdateRequest,
 ) -> ExampleResponse:
     """Update example metadata."""
     store = await get_example_store()
@@ -189,9 +210,15 @@ async def update_example(
     return ExampleResponse.from_record(record)
 
 
-@router.delete("/{example_id}")
+@router.delete(
+    "/{example_id}",
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
-async def delete_example(request: Request, example_id: str) -> dict[str, Any]:
+async def delete_example(
+    request: Request,
+    example_id: str,
+) -> dict[str, Any]:
     """Delete a stored example."""
     store = await get_example_store()
     await store.delete_example(example_id)
