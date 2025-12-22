@@ -11,8 +11,15 @@ This module provides:
 """
 
 from app.security.auth import (
+    AuthContext,
+    authenticate_user,
     create_access_token,
+    ensure_scopes,
+    get_auth_context,
     get_current_user,
+    require_auth,
+    require_mutation_scope,
+    require_scopes,
     verify_api_key,
     verify_token,
 )
@@ -34,6 +41,13 @@ __all__ = [
     "verify_token",
     "verify_api_key",
     "get_current_user",
+    "authenticate_user",
+    "get_auth_context",
+    "require_auth",
+    "require_scopes",
+    "require_mutation_scope",
+    "ensure_scopes",
+    "AuthContext",
     # Rate limiting
     "limiter",
     "setup_rate_limiting",
