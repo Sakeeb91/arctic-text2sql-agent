@@ -484,6 +484,36 @@ class TestText2SQLEngine:
             executor.execute.assert_awaited_once_with("SELECT 1")
 
     @pytest.mark.asyncio
+    async def test__execute_sql_threads_database_id(
+        self,
+        mock_db_manager: MagicMock,
+        mock_settings: MagicMock,
+    ) -> None:
+        """Test _execute_sql forwards database_id to execute_sql."""
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
+            engine = Text2SQLEngine(mock_db_manager)
+
+            mocked_result = MagicMock(rows=[{"id": 1}], row_count=1)
+            with patch.object(
+                engine,
+                "execute_sql",
+                new=AsyncMock(return_value=mocked_result),
+            ) as mock_execute:
+                rows, row_count = await engine._execute_sql(
+                    "SELECT 1",
+                    max_rows=25,
+                    database_id="test_db",
+                )
+
+            mock_execute.assert_awaited_once_with(
+                sql="SELECT 1",
+                database_id="test_db",
+                max_rows=25,
+            )
+            assert rows == [{"id": 1}]
+            assert row_count == 1
+
+    @pytest.mark.asyncio
     async def test_validate_sql(
         self,
         mock_db_manager: MagicMock,
