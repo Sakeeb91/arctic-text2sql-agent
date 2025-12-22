@@ -8,6 +8,15 @@ Complete API documentation for Text2SQL Agent.
 http://localhost:8000/api/v1
 ```
 
+## Authentication
+
+All `/api/v1` endpoints (except `/api/v1/health`) require authentication.
+
+- **API key**: `X-API-Key: <key>`
+- **JWT**: `Authorization: Bearer <token>`
+
+Mutation/management endpoints require scopes in `MUTATION_SCOPES` (default: `write,admin`).
+
 ## Interactive Documentation
 
 When the server is running, visit:
