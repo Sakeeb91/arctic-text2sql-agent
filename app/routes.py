@@ -574,8 +574,7 @@ async def register_schema(
                             {
                                 "field": "dialect",
                                 "error": (
-                                    "Supported: "
-                                    f"{SQLDialect.supported_dialects()}"
+                                    "Supported: " f"{SQLDialect.supported_dialects()}"
                                 ),
                             }
                         ],
