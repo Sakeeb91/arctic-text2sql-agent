@@ -31,6 +31,7 @@ from app.exceptions import (
 from app.logging_config import get_logger
 from app.resilience import CircuitBreaker, CircuitBreakerConfig, compute_backoff_seconds
 from db.connection import DatabaseManager
+from db.executor import QueryResult
 from db.schema import SchemaInfo, SchemaIntrospector
 
 logger = get_logger(__name__)
@@ -999,7 +1000,7 @@ class Text2SQLEngine:
         sql: str,
         database_id: str | None = None,
         max_rows: int = 1000,
-    ) -> "QueryResult":
+    ) -> QueryResult:
         """
         Execute a SQL query using the safe executor.
 
@@ -1011,7 +1012,7 @@ class Text2SQLEngine:
         Returns:
             QueryResult with execution results
         """
-        from db.executor import QueryResult, SafeQueryExecutor
+        from db.executor import SafeQueryExecutor
 
         async with self._db_manager.session() as session:
             executor = SafeQueryExecutor(
