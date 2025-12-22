@@ -15,6 +15,7 @@ from app.streaming import (
     QueryStreamer,
     StreamEvent,
     StreamEventType,
+    _iter_result_batches,
     create_sse_response,
     heartbeat_generator,
     stream_results,
@@ -484,6 +485,15 @@ class TestQueryStreamerExecution:
 
 class TestStreamResults:
     """Tests for stream_results function."""
+
+    def test_iter_result_batches(self) -> None:
+        """Test batch iterator boundaries."""
+        rows = [{"id": i} for i in range(5)]
+        batches = list(_iter_result_batches(rows, batch_size=2))
+
+        assert batches[0] == (0, 2, [{"id": 0}, {"id": 1}])
+        assert batches[1] == (2, 4, [{"id": 2}, {"id": 3}])
+        assert batches[2] == (4, 5, [{"id": 4}])
 
     @pytest.mark.asyncio
     async def test_stream_empty_results(self) -> None:
