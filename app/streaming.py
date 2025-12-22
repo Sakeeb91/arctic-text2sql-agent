@@ -281,6 +281,22 @@ class QueryStreamer:
             data={"total_steps": len(result.reasoning_trace)},
         )
 
+    async def _execute_legacy_sql(
+        self,
+        engine: Any,
+        sql: str,
+        database_id: str,
+        max_rows: int,
+    ) -> Any:
+        """Execute SQL using the legacy engine path."""
+        return await engine.generate_sql(
+            natural_query=sql,  # Pass SQL directly
+            database_id=database_id,
+            execute=True,
+            show_reasoning=False,
+            max_rows=max_rows,
+        )
+
     async def _stream_execution_legacy(
         self,
         engine: Any,
@@ -296,12 +312,11 @@ class QueryStreamer:
 
         try:
             # Execute the query
-            result = await engine.generate_sql(
-                natural_query=sql,  # Pass SQL directly
-                database_id=database_id,
-                execute=True,
-                show_reasoning=False,
-                max_rows=max_rows,
+            result = await self._execute_legacy_sql(
+                engine,
+                sql,
+                database_id,
+                max_rows,
             )
 
             if result.execution_results:
