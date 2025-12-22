@@ -233,6 +233,7 @@ docker-compose up -d
 
 | Document | Description |
 |----------|-------------|
+| [Workflow Guide](docs/WORKFLOW_GUIDE.md) | Integration patterns and usage workflows |
 | [API Reference](docs/API.md) | Complete endpoint documentation |
 | [Configuration](docs/CONFIGURATION.md) | Environment variables and options |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, Kubernetes, production |
