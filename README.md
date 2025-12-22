@@ -172,6 +172,13 @@ curl -X POST http://localhost:8000/api/v1/query \
 
 See [docs/API.md](docs/API.md) for complete API reference.
 
+## Authentication & Authorization
+
+- All `/api/v1` endpoints (except `/api/v1/health`) require authentication.
+- Use `Authorization: Bearer <jwt>` or `X-API-Key: <key>` headers.
+- Mutation/management endpoints require scopes in `MUTATION_SCOPES` (default: `write,admin`).
+- Configure auth, scopes, and rate limiting in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
 ## Docker
 
 ```bash
