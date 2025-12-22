@@ -218,6 +218,7 @@ class QueryStreamer:
                     data={
                         "error": "No SQL generated for execution",
                         "stage": "generation",
+                        "database_id": database_id,
                     },
                 )
                 return
