@@ -1044,18 +1044,8 @@ class Text2SQLEngine:
         Returns:
             Tuple of (results list, row count)
         """
-        from db.executor import SafeQueryExecutor
-
-        async with self._db_manager.session() as session:
-            executor = SafeQueryExecutor(
-                session=session,
-                allow_mutations=False,
-                max_rows=max_rows,
-            )
-
-            result = await executor.execute(sql)
-
-            return result.rows, result.row_count
+        result = await self.execute_sql(sql=sql, max_rows=max_rows)
+        return result.rows, result.row_count
 
     def invalidate_schema_cache(self, database_id: str | None = None) -> None:
         """
