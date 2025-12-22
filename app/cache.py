@@ -33,6 +33,7 @@ class CacheNamespace(str, Enum):
 
     QUERY_RESULT = "query"
     MODEL_OUTPUT = "model"
+    PROMPT = "prompt"
     SCHEMA = "schema"
     INFERENCE = "inference"
     VALIDATION = "validation"
