@@ -27,7 +27,7 @@ hiredis>=2.3.0
 
 # Monitoring & Logging
 prometheus-client==0.23.1
-structlog==24.1.0
+structlog==25.5.0
 
 # Security
 cryptography>=39.0.0
