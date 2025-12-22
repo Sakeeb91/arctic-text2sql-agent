@@ -382,9 +382,9 @@ class QueryStreamer:
             rows = query_result.rows or []
             total_rows = len(rows)
 
-            for batch_start in range(0, total_rows, self._batch_size):
-                batch_end = min(batch_start + self._batch_size, total_rows)
-                batch = rows[batch_start:batch_end]
+            for batch_start, batch_end, batch in _iter_result_batches(
+                rows, self._batch_size
+            ):
 
                 yield StreamEvent(
                     event_type=StreamEventType.RESULT_BATCH,
