@@ -432,9 +432,7 @@ async def stream_results(
     """
     total_rows = len(results)
 
-    for batch_start in range(0, total_rows, batch_size):
-        batch_end = min(batch_start + batch_size, total_rows)
-        batch = results[batch_start:batch_end]
+    for batch_start, batch_end, batch in _iter_result_batches(results, batch_size):
 
         yield StreamEvent(
             event_type=StreamEventType.RESULT_BATCH,
