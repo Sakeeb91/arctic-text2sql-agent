@@ -53,6 +53,11 @@ def get_rate_limit_key(request: Request) -> str:
     return ip_address
 
 
+def _resolve_storage_uri() -> str:
+    settings = get_settings()
+    return settings.security.rate_limit_storage_url or "memory://"
+
+
 # Initialize limiter with configuration
 settings = get_settings()
 limiter = Limiter(
@@ -60,7 +65,8 @@ limiter = Limiter(
     default_limits=[
         f"{settings.api.rate_limit_per_minute}/minute",
     ],
-    storage_uri="memory://",  # Use in-memory storage (upgrade to Redis in production)
+    storage_uri=_resolve_storage_uri(),
+    headers_enabled=settings.security.rate_limit_headers_enabled,
 )
 
 
@@ -86,6 +92,8 @@ def setup_rate_limiting(app: FastAPI) -> None:
         "rate_limiting_configured",
         rate_limit_per_minute=settings.api.rate_limit_per_minute,
         rate_limit_burst=settings.api.rate_limit_burst,
+        storage_uri=_resolve_storage_uri(),
+        headers_enabled=settings.security.rate_limit_headers_enabled,
     )
 
 
