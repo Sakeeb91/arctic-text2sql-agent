@@ -433,6 +433,7 @@ class TestText2SQLEngine:
         )
         settings.cache = MagicMock(enabled=False)
         settings.huggingface = MagicMock(model_name="test-model")
+        settings.multi_database = MagicMock(enabled=False)
         return settings
 
     def test_initialization(
@@ -633,6 +634,35 @@ class TestText2SQLEngine:
             assert result.metadata.get("fallback") is True
             assert any("circuit" in w for w in warnings)
 
+    @pytest.mark.asyncio
+    async def test_resolve_database_context_uses_registry(
+        self,
+        mock_db_manager: MagicMock,
+        mock_settings: MagicMock,
+    ) -> None:
+        """Test registry-based context resolution when enabled."""
+        mock_settings.multi_database.enabled = True
+
+        registered = MagicMock()
+        registered.engine = MagicMock()
+        registered.config.dialect = MagicMock()
+        registered.config.dialect.value = "postgresql"
+
+        registry = MagicMock()
+        registry.get_database.return_value = registered
+        registry.session.return_value = "session_ctx"
+
+        with (
+            patch("app.text2sql_engine.get_settings", return_value=mock_settings),
+            patch("app.text2sql_engine.get_database_registry", return_value=registry),
+        ):
+            engine = Text2SQLEngine(mock_db_manager)
+            context = await engine._resolve_database_context("analytics")
+
+        assert context.database_id == "analytics"
+        assert context.dialect == "postgresql"
+        assert context.session_provider() == "session_ctx"
+
 
 # =============================================================================
 # Test Global Engine Management
@@ -681,6 +711,7 @@ class TestGlobalEngineManagement:
                     ),
                     cache=MagicMock(enabled=False),
                     huggingface=MagicMock(model_name="test-model"),
+                    multi_database=MagicMock(enabled=False),
                 )
 
                 engine = await get_text2sql_engine()

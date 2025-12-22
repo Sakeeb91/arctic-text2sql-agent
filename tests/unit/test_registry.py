@@ -20,6 +20,7 @@ from db.registry import (
     get_database_registry,
     reset_database_registry,
 )
+from db.schema import SchemaInfo
 
 
 class TestDatabaseConfig:
@@ -277,6 +278,29 @@ class TestDatabaseRegistry:
 
         adapter = registry.get_adapter("adapter_test")
         assert adapter.dialect == SQLDialect.SQLITE
+
+        await registry.close_all()
+
+    @pytest.mark.asyncio
+    async def test_update_schema_stores_metadata(
+        self, registry: DatabaseRegistry
+    ) -> None:
+        """Test storing schema metadata for a registered database."""
+        config = DatabaseConfig(
+            database_id="schema_test",
+            connection_string="sqlite+aiosqlite:///:memory:",
+        )
+        registered = await registry.register_database(config, test_connection=False)
+
+        schema = SchemaInfo(
+            database_id="schema_test",
+            dialect="sqlite",
+            tables=[],
+        )
+        registry.update_schema("schema_test", schema)
+
+        assert registered.schema is schema
+        assert registered.schema_updated_at == schema.last_updated
 
         await registry.close_all()
 
