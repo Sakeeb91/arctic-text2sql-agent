@@ -147,15 +147,17 @@ curl -X POST http://localhost:8000/api/v1/query \
 - Self-correction when queries are incorrect
 - Schema-aware SQL generation
 - Output validation before returning
+- Semantic validation feedback for joins, aggregations, and rankings
 
 ### Production Ready
 - SQL injection prevention
 - Rate limiting and authentication
-- Prometheus metrics and structured logging
+- Prometheus metrics, OpenTelemetry tracing, and structured logging
 - Multi-database support (PostgreSQL, MySQL, SQLite)
 
 ### Performance
 - Query caching for instant repeated responses
+- Schema, prompt, and inference caching with TTL controls (Redis or in-memory)
 - Model quantization for memory efficiency
 - Async processing for high throughput
 - Streaming endpoint for long-running queries with batched results
