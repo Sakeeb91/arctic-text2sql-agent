@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv()
@@ -221,6 +221,21 @@ class SecuritySettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
+    auth_enabled: bool = Field(
+        default=True,
+        alias="AUTH_ENABLED",
+        description="Enable authentication enforcement on protected routes",
+    )
+    jwt_enabled: bool = Field(
+        default=True,
+        alias="JWT_AUTH_ENABLED",
+        description="Enable JWT authentication support",
+    )
+    api_key_enabled: bool = Field(
+        default=True,
+        alias="API_KEY_AUTH_ENABLED",
+        description="Enable API key authentication support",
+    )
     secret_key: str = Field(
         default="your-secret-key-change-in-production",
         alias="SECRET_KEY",
@@ -237,6 +252,64 @@ class SecuritySettings(BaseSettings):
         ge=1,
         description="JWT access token expiration time in minutes",
     )
+    api_keys: str = Field(
+        default="",
+        validation_alias=AliasChoices("API_KEYS", "API_KEY"),
+        description="Comma-separated API keys, optionally key:scope1|scope2",
+    )
+    api_key_scopes: str = Field(
+        default="read",
+        alias="API_KEY_SCOPES",
+        description="Default scopes for API keys without explicit scope list",
+    )
+    auth_users: str = Field(
+        default="",
+        alias="AUTH_USERS",
+        description="Semicolon-separated username:password[:scopes] for token issuance",
+    )
+    jwt_scopes_claim: str = Field(
+        default="scopes",
+        alias="JWT_SCOPES_CLAIM",
+        description="JWT claim name that lists granted scopes",
+    )
+    jwt_role_claim: str = Field(
+        default="role",
+        alias="JWT_ROLE_CLAIM",
+        description="JWT claim name for role-based access",
+    )
+    mutation_scopes: str = Field(
+        default="write,admin",
+        alias="MUTATION_SCOPES",
+        description="Scopes required for mutation and management endpoints",
+    )
+    rate_limit_storage_url: str | None = Field(
+        default=None,
+        alias="RATE_LIMIT_STORAGE_URL",
+        description="Redis URL for rate limiting storage (optional)",
+    )
+    rate_limit_headers_enabled: bool = Field(
+        default=True,
+        alias="RATE_LIMIT_HEADERS_ENABLED",
+        description="Enable X-RateLimit headers in responses",
+    )
+
+    @property
+    def api_key_scopes_list(self) -> list[str]:
+        """Return default API key scopes as a list."""
+        return [
+            scope.strip().lower()
+            for scope in self.api_key_scopes.replace("|", ",").split(",")
+            if scope.strip()
+        ]
+
+    @property
+    def mutation_scopes_list(self) -> list[str]:
+        """Return mutation scopes as a list."""
+        return [
+            scope.strip().lower()
+            for scope in self.mutation_scopes.replace("|", ",").split(",")
+            if scope.strip()
+        ]
 
 
 class LoggingSettings(BaseSettings):
