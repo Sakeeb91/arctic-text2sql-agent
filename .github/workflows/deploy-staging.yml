@@ -28,7 +28,7 @@ jobs:
       deployments: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set image tag
         id: set_tag
@@ -112,7 +112,7 @@ jobs:
     needs: deploy
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Wait for deployment to stabilize
         run: sleep 30
