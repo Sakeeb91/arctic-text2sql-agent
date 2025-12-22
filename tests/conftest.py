@@ -18,7 +18,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.main import app
 from db.connection import DatabaseManager
 from db.schema import ColumnInfo, SchemaInfo, TableInfo
@@ -98,6 +98,28 @@ def test_settings() -> Settings:
             allow_mutations=False,
         ),
     )
+
+
+# =============================================================================
+# Authentication Fixtures
+# =============================================================================
+
+
+@pytest.fixture(autouse=True)
+def auth_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configure auth defaults for tests."""
+    monkeypatch.setenv("AUTH_ENABLED", "true")
+    monkeypatch.setenv("JWT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("API_KEY_AUTH_ENABLED", "true")
+    monkeypatch.setenv("API_KEYS", "test-api-key:read|write|admin")
+    monkeypatch.setenv("API_KEY_SCOPES", "read")
+    monkeypatch.setenv("AUTH_USERS", "test-user:test-password:read|write|admin")
+    monkeypatch.setenv("JWT_SCOPES_CLAIM", "scopes")
+    monkeypatch.setenv("JWT_ROLE_CLAIM", "role")
+    monkeypatch.setenv("MUTATION_SCOPES", "write,admin")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 # =============================================================================
