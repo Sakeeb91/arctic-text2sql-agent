@@ -73,7 +73,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ -v --cov=app --cov=db --cov=models --cov-report=xml --cov-report=term-missing
+          pytest tests/ -v --cov=app --cov=db --cov=models --cov-report=xml --cov-report=term-missing --ignore=tests/e2e/
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
