@@ -187,6 +187,11 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "e2e: End-to-end tests with real model/database",
+    "e2e_slow: Slow E2E tests (model loading)",
+    "e2e_multidb: Multi-database E2E tests",
+    "e2e_streaming: Streaming endpoint E2E tests",
+    "e2e_performance: Performance benchmark E2E tests",
 ]
 
 # Coverage configuration
