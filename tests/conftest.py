@@ -122,6 +122,12 @@ def auth_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     get_settings.cache_clear()
 
 
+@pytest.fixture
+def auth_headers() -> dict[str, str]:
+    """Provide default auth headers for API tests."""
+    return {"X-API-Key": "test-api-key"}
+
+
 # =============================================================================
 # Database Fixtures
 # =============================================================================
@@ -295,17 +301,22 @@ def mock_model_loader(mock_model: MagicMock, mock_tokenizer: MagicMock) -> Magic
 
 
 @pytest.fixture
-def test_client() -> TestClient:
+def test_client(auth_headers: dict[str, str]) -> TestClient:
     """Create a synchronous test client."""
-    return TestClient(app)
+    client = TestClient(app)
+    client.headers.update(auth_headers)
+    return client
 
 
 @pytest.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
+async def async_client(
+    auth_headers: dict[str, str],
+) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
+        headers=auth_headers,
     ) as client:
         yield client
 
