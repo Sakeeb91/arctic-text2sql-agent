@@ -6,7 +6,7 @@ intent classification, and result handling.
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -437,6 +437,51 @@ class TestText2SQLEngine:
             # Invalidate all
             engine.invalidate_schema_cache()
             assert len(engine._schema_cache) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_sql_uses_safe_executor(
+        self,
+        mock_db_manager: MagicMock,
+        mock_settings: MagicMock,
+    ) -> None:
+        """Test execute_sql delegates to SafeQueryExecutor."""
+        with patch("app.text2sql_engine.get_settings", return_value=mock_settings):
+            engine = Text2SQLEngine(mock_db_manager)
+
+            session = AsyncMock()
+            session_cm = AsyncMock()
+            session_cm.__aenter__.return_value = session
+            session_cm.__aexit__.return_value = None
+            mock_db_manager.session.return_value = session_cm
+
+            from db.executor import QueryResult
+
+            query_result = QueryResult(
+                success=True,
+                sql="SELECT 1",
+                rows=[{"id": 1}],
+                row_count=1,
+            )
+
+            executor = AsyncMock()
+            executor.execute.return_value = query_result
+
+            with patch(
+                "db.executor.SafeQueryExecutor", return_value=executor
+            ) as mock_executor:
+                result = await engine.execute_sql(
+                    "SELECT 1",
+                    database_id="test_db",
+                    max_rows=5,
+                )
+
+            assert result is query_result
+            mock_executor.assert_called_once_with(
+                session=session,
+                allow_mutations=False,
+                max_rows=5,
+            )
+            executor.execute.assert_awaited_once_with("SELECT 1")
 
     @pytest.mark.asyncio
     async def test_validate_sql(
