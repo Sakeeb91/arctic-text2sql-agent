@@ -8,6 +8,7 @@ This module provides:
 """
 
 import secrets
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Iterable, Literal
@@ -392,7 +393,9 @@ async def require_auth(auth: AuthContext = Depends(get_auth_context)) -> AuthCon
     return auth
 
 
-def require_scopes(required_scopes: set[str]):
+def require_scopes(
+    required_scopes: set[str],
+) -> Callable[..., Awaitable[AuthContext]]:
     """Factory for scope-enforcing dependencies."""
 
     async def _require(auth: AuthContext = Depends(get_auth_context)) -> AuthContext:
