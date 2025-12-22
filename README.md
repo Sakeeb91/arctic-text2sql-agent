@@ -158,6 +158,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 - Query caching for instant repeated responses
 - Model quantization for memory efficiency
 - Async processing for high throughput
+- Streaming endpoint for long-running queries with batched results
 
 ## API Endpoints
 
