@@ -7,7 +7,7 @@ connections in the registry.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import get_settings
@@ -18,7 +18,7 @@ from app.exceptions import (
     ValidationException,
 )
 from app.logging_config import get_logger
-from app.security import limiter
+from app.security import limiter, require_auth, require_mutation_scope
 from db.dialects import SQLDialect
 from db.registry import (
     DatabaseConfig,
@@ -30,7 +30,11 @@ from db.registry import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/databases", tags=["Database Management"])
+router = APIRouter(
+    prefix="/api/v1/databases",
+    tags=["Database Management"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 # =============================================================================
@@ -243,7 +247,12 @@ def _health_to_response(health: DatabaseHealth) -> DatabaseHealthResponse:
 # =============================================================================
 
 
-@router.post("", response_model=DatabaseResponse, status_code=201)
+@router.post(
+    "",
+    response_model=DatabaseResponse,
+    status_code=201,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def register_database(
     request: Request,
@@ -463,7 +472,11 @@ async def check_all_database_health(
     )
 
 
-@router.delete("/{database_id}", response_model=DatabaseDeleteResponse)
+@router.delete(
+    "/{database_id}",
+    response_model=DatabaseDeleteResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def unregister_database(
     request: Request,
