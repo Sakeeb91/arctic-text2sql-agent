@@ -516,14 +516,13 @@ class SQLValidator:
                 f"Add LIMIT {top_match.group(1)} to restrict results."
             )
 
-        if re.search(r"\b(most|highest|lowest|least)\b", query_lower):
-            if not self._has_order_by(sql_upper):
-                feedback.warnings.append(
-                    "Ranking intent detected without ORDER BY in SQL."
-                )
-                feedback.suggestions.append(
-                    "Use ORDER BY to rank results and LIMIT 1 for the best match."
-                )
+        if re.search(
+            r"\b(most|highest|lowest|least)\b", query_lower
+        ) and not self._has_order_by(sql_upper):
+            feedback.warnings.append("Ranking intent detected without ORDER BY in SQL.")
+            feedback.suggestions.append(
+                "Use ORDER BY to rank results and LIMIT 1 for the best match."
+            )
 
         return feedback
 
