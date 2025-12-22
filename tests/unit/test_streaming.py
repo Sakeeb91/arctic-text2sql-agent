@@ -194,6 +194,22 @@ class TestQueryStreamerExecution:
         assert all(event.event_type != StreamEventType.RESULT_COMPLETE for event in events)
 
     @pytest.mark.asyncio
+    async def test_stream_execution_legacy_exception(self) -> None:
+        """Test legacy execution handles raised exceptions."""
+        streamer = QueryStreamer()
+
+        class StubEngine:
+            async def execute_sql(self, **kwargs) -> None:
+                raise RuntimeError("boom")
+
+        events = await collect_events(
+            streamer._stream_execution_legacy(StubEngine(), "SELECT 1", "db1", max_rows=5)
+        )
+
+        assert events[-1].event_type == StreamEventType.QUERY_ERROR
+        assert events[-1].data["stage"] == "execution"
+
+    @pytest.mark.asyncio
     async def test_stream_query_missing_sql_emits_error(self, monkeypatch) -> None:
         """Test stream_query emits error when SQL generation is empty."""
         streamer = QueryStreamer()
