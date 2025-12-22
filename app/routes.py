@@ -9,7 +9,7 @@ Issue #8: Added caching and streaming support for performance optimization.
 from datetime import datetime
 from typing import Any, cast
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -23,7 +23,15 @@ from app.exceptions import (
     ValidationException,
 )
 from app.logging_config import get_logger
-from app.security import limiter, validate_database_id, validate_natural_language_query
+from app.security import (
+    AuthContext,
+    ensure_scopes,
+    limiter,
+    require_auth,
+    require_mutation_scope,
+    validate_database_id,
+    validate_natural_language_query,
+)
 from db.connection import get_database
 from models.loader import get_model_loader
 
@@ -179,7 +187,12 @@ class ModelInfoResponse(BaseModel):
 
 @router.post("/query", response_model=QueryResponse)
 @limiter.limit("10/minute")
-async def generate_sql(request: Request, query_request: QueryRequest) -> QueryResponse:
+async def generate_sql(
+    request: Request,
+    response: Response,
+    query_request: QueryRequest,
+    auth: AuthContext = Depends(require_auth),
+) -> QueryResponse:
     """
     Generate SQL from natural language query.
 
@@ -221,6 +234,11 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
         show_reasoning=query_request.show_reasoning,
     )
     settings = get_settings()
+    if query_request.execute and settings.multi_database.allow_mutations:
+        mutation_scopes = {
+            scope.lower() for scope in settings.security.mutation_scopes_list
+        }
+        ensure_scopes(auth, mutation_scopes, resource="sql_execute")
 
     def build_reasoning_trace(steps: list[Any] | None) -> list[ReasoningStep] | None:
         if not steps:
@@ -335,10 +353,16 @@ async def generate_sql(request: Request, query_request: QueryRequest) -> QueryRe
         ) from e
 
 
-@router.post("/validate", response_model=ValidationResponse)
+@router.post(
+    "/validate",
+    response_model=ValidationResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("20/minute")
 async def validate_sql(
-    request: Request, validation_request: ValidationRequest
+    request: Request,
+    response: Response,
+    validation_request: ValidationRequest,
 ) -> ValidationResponse:
     """
     Validate SQL syntax and semantics.
@@ -412,9 +436,17 @@ async def validate_sql(
         )
 
 
-@router.get("/schema/{database_id}", response_model=SchemaResponse)
+@router.get(
+    "/schema/{database_id}",
+    response_model=SchemaResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("30/minute")
-async def get_schema(request: Request, database_id: str) -> SchemaResponse:
+async def get_schema(
+    request: Request,
+    response: Response,
+    database_id: str,
+) -> SchemaResponse:
     """
     Get database schema information.
 
@@ -464,10 +496,12 @@ async def get_schema(request: Request, database_id: str) -> SchemaResponse:
         )
 
 
-@router.post("/schema/register")
+@router.post("/schema/register", dependencies=[Depends(require_mutation_scope)])
 @limiter.limit("10/minute")
 async def register_schema(
-    request: Request, schema_request: SchemaRequest
+    request: Request,
+    response: Response,
+    schema_request: SchemaRequest,
 ) -> dict[str, str]:
     """
     Register a new database schema.
@@ -530,10 +564,16 @@ class RetryRequest(BaseModel):
     )
 
 
-@router.get("/agent/reasoning/{query_id}", response_model=AgentReasoningResponse)
+@router.get(
+    "/agent/reasoning/{query_id}",
+    response_model=AgentReasoningResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("30/minute")
 async def get_reasoning_trace(
-    request: Request, query_id: str
+    request: Request,
+    response: Response,
+    query_id: str,
 ) -> AgentReasoningResponse:
     """
     Get detailed reasoning trace for a query.
@@ -585,9 +625,17 @@ async def get_reasoning_trace(
         raise
 
 
-@router.post("/agent/retry", response_model=QueryResponse)
+@router.post(
+    "/agent/retry",
+    response_model=QueryResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("10/minute")
-async def retry_query(request: Request, retry_request: RetryRequest) -> QueryResponse:
+async def retry_query(
+    request: Request,
+    response: Response,
+    retry_request: RetryRequest,
+) -> QueryResponse:
     """
     Retry a failed query with optional correction hints.
 
@@ -676,7 +724,11 @@ class TokenResponse(BaseModel):
 
 @router.post("/auth/token", response_model=TokenResponse)
 @limiter.limit("5/minute")
-async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
+async def login(
+    request: Request,
+    response: Response,
+    credentials: LoginRequest,
+) -> TokenResponse:
     """
     Generate JWT access token.
 
@@ -684,32 +736,29 @@ async def login(request: Request, credentials: LoginRequest) -> TokenResponse:
 
     Rate limit: 5 requests per minute per client.
 
-    Note: In production, this should validate against a user database.
-    Currently uses placeholder authentication for development.
+    Note: Credentials are configured via AUTH_USERS.
     """
     # Import auth utilities
-    from app.security import create_access_token
+    from app.security import authenticate_user, create_access_token
 
-    # TODO: Implement actual user authentication against database
-    # For now, simple placeholder authentication
-    if (
-        credentials.username == "demo"
-        and credentials.password == "demo_password"  # nosec B105
-    ):
-        token = create_access_token(data={"sub": credentials.username})
+    scopes = authenticate_user(credentials.username, credentials.password)
+    if scopes is None:
+        logger.warning("authentication_failed", username=credentials.username)
+        raise AuthenticationException(message="Incorrect username or password")
 
-        settings = get_settings()
+    token = create_access_token(
+        data={"sub": credentials.username, "scopes": sorted(scopes)}
+    )
 
-        logger.info("user_authenticated", username=credentials.username)
+    settings = get_settings()
 
-        return TokenResponse(
-            access_token=token,
-            token_type="bearer",  # nosec B106 - Standard OAuth2 token type
-            expires_in=settings.security.jwt_access_token_expire_minutes * 60,
-        )
+    logger.info("user_authenticated", username=credentials.username)
 
-    logger.warning("authentication_failed", username=credentials.username)
-    raise AuthenticationException(message="Incorrect username or password")
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",  # nosec B106 - Standard OAuth2 token type
+        expires_in=settings.security.jwt_access_token_expire_minutes * 60,
+    )
 
 
 # =============================================================================
@@ -779,7 +828,11 @@ async def health_check() -> HealthResponse:
     )
 
 
-@router.get("/models/info", response_model=ModelInfoResponse)
+@router.get(
+    "/models/info",
+    response_model=ModelInfoResponse,
+    dependencies=[Depends(require_auth)],
+)
 async def get_model_info() -> ModelInfoResponse:
     """
     Get information about the loaded model.
@@ -848,7 +901,10 @@ class StreamQueryRequest(BaseModel):
 @router.post("/query/stream")
 @limiter.limit("10/minute")
 async def stream_sql_generation(
-    request: Request, query_request: StreamQueryRequest
+    request: Request,
+    response: Response,
+    query_request: StreamQueryRequest,
+    auth: AuthContext = Depends(require_auth),
 ) -> StreamingResponse:
     """
     Stream SQL generation with Server-Sent Events.
@@ -877,6 +933,13 @@ async def stream_sql_generation(
             message=db_error or "Invalid database ID",
             validation_errors=[{"field": "database_id", "error": db_error}],
         )
+
+    settings = get_settings()
+    if query_request.execute and settings.multi_database.allow_mutations:
+        mutation_scopes = {
+            scope.lower() for scope in settings.security.mutation_scopes_list
+        }
+        ensure_scopes(auth, mutation_scopes, resource="sql_execute")
 
     logger.info(
         "stream_sql_generation_request",
@@ -916,9 +979,16 @@ class CacheStatsResponse(BaseModel):
     hit_rate: float = Field(..., description="Cache hit rate")
 
 
-@router.get("/cache/stats", response_model=CacheStatsResponse)
+@router.get(
+    "/cache/stats",
+    response_model=CacheStatsResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("30/minute")
-async def get_cache_stats(request: Request) -> CacheStatsResponse:
+async def get_cache_stats(
+    request: Request,
+    response: Response,
+) -> CacheStatsResponse:
     """
     Get cache statistics.
 
@@ -965,10 +1035,16 @@ class CacheInvalidateResponse(BaseModel):
     message: str = Field(..., description="Result message")
 
 
-@router.post("/cache/invalidate", response_model=CacheInvalidateResponse)
+@router.post(
+    "/cache/invalidate",
+    response_model=CacheInvalidateResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def invalidate_cache(
-    request: Request, invalidate_request: CacheInvalidateRequest
+    request: Request,
+    response: Response,
+    invalidate_request: CacheInvalidateRequest,
 ) -> CacheInvalidateResponse:
     """
     Invalidate cache entries.
@@ -1059,9 +1135,16 @@ class PerformanceResponse(BaseModel):
     active_requests: int = Field(..., description="Active requests")
 
 
-@router.get("/performance", response_model=PerformanceResponse)
+@router.get(
+    "/performance",
+    response_model=PerformanceResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("30/minute")
-async def get_performance_metrics(request: Request) -> PerformanceResponse:
+async def get_performance_metrics(
+    request: Request,
+    response: Response,
+) -> PerformanceResponse:
     """
     Get current performance metrics.
 
@@ -1138,10 +1221,16 @@ class BatchQueryResponse(BaseModel):
     failed: int = Field(..., description="Number of failed queries")
 
 
-@router.post("/query/batch", response_model=BatchQueryResponse)
+@router.post(
+    "/query/batch",
+    response_model=BatchQueryResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("5/minute")
 async def generate_sql_batch(
-    request: Request, batch_request: BatchQueryRequest
+    request: Request,
+    response: Response,
+    batch_request: BatchQueryRequest,
 ) -> BatchQueryResponse:
     """
     Generate SQL for multiple queries in batch.
@@ -1397,10 +1486,16 @@ class BatchExplainResponse(BaseModel):
     total_time_ms: float = Field(..., description="Total processing time")
 
 
-@router.post("/explain", response_model=ExplainResponse)
+@router.post(
+    "/explain",
+    response_model=ExplainResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("20/minute")
 async def explain_sql(
-    request: Request, explain_request: ExplainRequest
+    request: Request,
+    response: Response,
+    explain_request: ExplainRequest,
 ) -> ExplainResponse:
     """
     Generate natural language explanation of a SQL query.
@@ -1486,10 +1581,16 @@ async def explain_sql(
         raise
 
 
-@router.post("/visualize", response_model=VisualizeResponse)
+@router.post(
+    "/visualize",
+    response_model=VisualizeResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("30/minute")
 async def visualize_sql(
-    request: Request, visualize_request: VisualizeRequest
+    request: Request,
+    response: Response,
+    visualize_request: VisualizeRequest,
 ) -> VisualizeResponse:
     """
     Generate visualization of SQL query structure.
@@ -1537,9 +1638,17 @@ async def visualize_sql(
         raise
 
 
-@router.get("/explain/{query_id}", response_model=ExplainResponse)
+@router.get(
+    "/explain/{query_id}",
+    response_model=ExplainResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("30/minute")
-async def get_cached_explanation(request: Request, query_id: str) -> ExplainResponse:
+async def get_cached_explanation(
+    request: Request,
+    response: Response,
+    query_id: str,
+) -> ExplainResponse:
     """
     Retrieve a cached explanation by query ID.
 
@@ -1594,10 +1703,16 @@ async def get_cached_explanation(request: Request, query_id: str) -> ExplainResp
     )
 
 
-@router.post("/explain/batch", response_model=BatchExplainResponse)
+@router.post(
+    "/explain/batch",
+    response_model=BatchExplainResponse,
+    dependencies=[Depends(require_auth)],
+)
 @limiter.limit("5/minute")
 async def explain_sql_batch(
-    request: Request, batch_request: BatchExplainRequest
+    request: Request,
+    response: Response,
+    batch_request: BatchExplainRequest,
 ) -> BatchExplainResponse:
     """
     Generate explanations for multiple SQL queries.
