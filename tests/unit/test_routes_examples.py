@@ -40,9 +40,11 @@ def app(mock_store: MagicMock) -> FastAPI:
 
 
 @pytest.fixture
-def client(app: FastAPI) -> TestClient:
+def client(app: FastAPI, auth_headers: dict[str, str]) -> TestClient:
     """Create test client."""
-    return TestClient(app)
+    client = TestClient(app)
+    client.headers.update(auth_headers)
+    return client
 
 
 class TestExampleRoutes:
