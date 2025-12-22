@@ -74,6 +74,11 @@ Stream SQL generation results in real-time.
 POST /api/v1/query/stream
 ```
 
+Notes:
+- SQL is generated once; when `execute=true`, the generated SQL is executed directly and results are streamed in batches.
+- If SQL generation returns an empty string and `execute=true`, a `query_error` event is emitted and the stream ends.
+- Results are capped by `max_rows` and streamed in fixed-size batches (default 100 rows).
+
 ### Validate SQL
 
 Validate SQL syntax and semantics without execution.
