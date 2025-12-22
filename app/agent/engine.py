@@ -342,7 +342,7 @@ class AgentRunner:
             cached_payload = await get_cached_schema(db_context.database_id)
             if isinstance(cached_payload, dict):
                 cached_description = cached_payload.get("serialized_schema")
-                if cached_description:
+                if isinstance(cached_description, str) and cached_description:
                     self._schema_cache[db_context.database_id] = cached_description
                     return cached_description
 
