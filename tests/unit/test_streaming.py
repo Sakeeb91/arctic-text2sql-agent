@@ -229,6 +229,62 @@ class TestQueryStreamerExecution:
         assert events[-1].event_type == StreamEventType.QUERY_ERROR
         assert all(event.event_type != StreamEventType.RESULT_COMPLETE for event in events)
 
+    @pytest.mark.asyncio
+    async def test_stream_query_executes_legacy_sql(self, monkeypatch) -> None:
+        """Test stream_query executes generated SQL via legacy executor."""
+        from db.executor import QueryResult
+
+        streamer = QueryStreamer(batch_size=5)
+
+        settings = SimpleNamespace(
+            agent=SimpleNamespace(enabled=False, use_legacy_fallback=False)
+        )
+        monkeypatch.setattr("app.streaming.get_settings", lambda: settings)
+
+        class StubEngine:
+            def __init__(self) -> None:
+                self.generate_calls = 0
+                self.execute_calls = 0
+
+            async def generate_sql(self, **kwargs) -> SimpleNamespace:
+                self.generate_calls += 1
+                return SimpleNamespace(
+                    sql="SELECT 1",
+                    confidence=0.9,
+                    reasoning_trace=[],
+                )
+
+            async def execute_sql(self, **kwargs) -> QueryResult:
+                self.execute_calls += 1
+                return QueryResult(
+                    success=True,
+                    sql="SELECT 1",
+                    rows=[{"id": 1}],
+                    row_count=1,
+                )
+
+        engine = StubEngine()
+
+        async def fake_get_engine() -> StubEngine:
+            return engine
+
+        monkeypatch.setattr(
+            "app.text2sql_engine.get_text2sql_engine",
+            fake_get_engine,
+        )
+
+        events = await collect_events(
+            streamer.stream_query(
+                natural_query="Show users",
+                database_id="db1",
+                execute=True,
+            )
+        )
+
+        assert engine.generate_calls == 1
+        assert engine.execute_calls == 1
+        assert any(event.event_type == StreamEventType.RESULT_COMPLETE for event in events)
+
 
 class TestStreamResults:
     """Tests for stream_results function."""
