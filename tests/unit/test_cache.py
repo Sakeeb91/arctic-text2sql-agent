@@ -15,14 +15,18 @@ from app.cache import (
     CacheManager,
     CacheNamespace,
     CacheStats,
+    cache_inference_result,
     cache_model_output,
+    cache_prompt,
     cache_query_result,
     cache_schema,
     cached,
     generate_prompt_hash,
     generate_query_hash,
     get_cache_manager,
+    get_cached_inference_result,
     get_cached_model_output,
+    get_cached_prompt,
     get_cached_query_result,
     get_cached_schema,
     invalidate_schema_cache,
@@ -395,6 +399,30 @@ class TestSpecializedCacheFunctions:
         assert cached is not None
         assert cached["dialect"] == "postgresql"
         assert len(cached["tables"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_cache_prompt(self) -> None:
+        """Test caching prompt text."""
+        success = await cache_prompt("prompt_key", "Prompt text")
+        assert success
+
+        cached = await get_cached_prompt("prompt_key")
+        assert cached == "Prompt text"
+
+    @pytest.mark.asyncio
+    async def test_cache_inference_result(self) -> None:
+        """Test caching inference results."""
+        payload = {
+            "generated_text": "SELECT 1",
+            "sql": "SELECT 1",
+            "confidence": 0.99,
+        }
+        success = await cache_inference_result("prompt_hash", payload)
+        assert success
+
+        cached = await get_cached_inference_result("prompt_hash")
+        assert cached is not None
+        assert cached["sql"] == "SELECT 1"
 
     @pytest.mark.asyncio
     async def test_invalidate_schema_cache_specific(self) -> None:
