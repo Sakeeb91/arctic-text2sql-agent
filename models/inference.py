@@ -12,9 +12,15 @@ from typing import Any
 import torch
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
+from app.cache import (
+    cache_inference_result,
+    generate_prompt_hash,
+    get_cached_inference_result,
+)
 from app.config import get_settings
 from app.exceptions import ModelInferenceException, TokenLimitExceededException
 from app.logging_config import get_logger
+from app.monitoring.model_instrumentation import ModelInstrumentor
 from models.loader import ModelLoader
 
 logger = get_logger(__name__)
@@ -186,6 +192,7 @@ class InferenceEngine:
         self,
         model_loader: ModelLoader,
         default_config: GenerationConfig | None = None,
+        instrumentor: ModelInstrumentor | None = None,
     ) -> None:
         """
         Initialize inference engine.
@@ -196,10 +203,24 @@ class InferenceEngine:
         """
         self._loader = model_loader
         self._default_config = default_config or GenerationConfig()
+        self._instrumentor = instrumentor
 
         settings = get_settings()
         self._max_input_length = 4096
         self._min_confidence = settings.agent.min_confidence
+        self._cache_enabled = settings.cache.enabled
+
+    def _build_cached_result(self, cached: dict[str, Any]) -> InferenceResult:
+        return InferenceResult(
+            generated_text=cached.get("generated_text", ""),
+            sql=cached.get("sql"),
+            input_tokens=int(cached.get("input_tokens", 0) or 0),
+            output_tokens=int(cached.get("output_tokens", 0) or 0),
+            inference_time_ms=float(cached.get("inference_time_ms", 0.0) or 0.0),
+            confidence=float(cached.get("confidence", 0.0) or 0.0),
+            raw_output=cached.get("raw_output", "") or "",
+            metadata=dict(cached.get("metadata", {}) or {}),
+        )
 
     @property
     def model(self) -> PreTrainedModel:
@@ -216,6 +237,7 @@ class InferenceEngine:
         prompt: str,
         config: GenerationConfig | None = None,
         extract_sql: bool = True,
+        trace_attributes: dict[str, Any] | None = None,
     ) -> InferenceResult:
         """
         Generate text from prompt.
@@ -233,7 +255,34 @@ class InferenceEngine:
             ModelInferenceException: If generation fails
         """
         config = config or self._default_config
+        trace_attributes = trace_attributes or {}
 
+        if self._instrumentor:
+            with self._instrumentor.trace_inference(
+                operation="generate",
+                attributes=trace_attributes,
+            ) as trace_context:
+                return await self._generate_internal(
+                    prompt=prompt,
+                    config=config,
+                    extract_sql=extract_sql,
+                    trace_context=trace_context,
+                )
+
+        return await self._generate_internal(
+            prompt=prompt,
+            config=config,
+            extract_sql=extract_sql,
+            trace_context=None,
+        )
+
+    async def _generate_internal(
+        self,
+        prompt: str,
+        config: GenerationConfig,
+        extract_sql: bool,
+        trace_context: dict[str, Any] | None,
+    ) -> InferenceResult:
         logger.debug(
             "starting_inference",
             prompt_length=len(prompt),
@@ -241,6 +290,27 @@ class InferenceEngine:
         )
 
         start_time = time.perf_counter()
+        cache_key: str | None = None
+
+        if self._cache_enabled:
+            cache_key = generate_prompt_hash(prompt)
+            cached = await get_cached_inference_result(cache_key)
+            if cached:
+                result = self._build_cached_result(cached)
+                result.metadata["cached"] = True
+                result.metadata.setdefault("cache_key", cache_key)
+                if trace_context is not None:
+                    trace_context["input_tokens"] = result.input_tokens
+                    trace_context["output_tokens"] = result.output_tokens
+                    trace_context["confidence"] = result.confidence
+                    trace_context["status"] = "cached"
+                logger.info(
+                    "inference_cache_hit",
+                    prompt_hash=cache_key,
+                    confidence=round(result.confidence, 3),
+                    sql_extracted=result.sql is not None,
+                )
+                return result
 
         try:
             # Tokenize input
@@ -306,7 +376,7 @@ class InferenceEngine:
                 sql_extracted=sql is not None,
             )
 
-            return InferenceResult(
+            result = InferenceResult(
                 generated_text=generated_text,
                 sql=sql,
                 input_tokens=input_tokens,
@@ -315,6 +385,28 @@ class InferenceEngine:
                 confidence=confidence,
                 raw_output=generated_text,
             )
+
+            if trace_context is not None:
+                trace_context["input_tokens"] = input_tokens
+                trace_context["output_tokens"] = output_tokens
+                trace_context["confidence"] = confidence
+
+            if self._cache_enabled and cache_key:
+                await cache_inference_result(
+                    cache_key,
+                    {
+                        "generated_text": result.generated_text,
+                        "sql": result.sql,
+                        "input_tokens": result.input_tokens,
+                        "output_tokens": result.output_tokens,
+                        "inference_time_ms": result.inference_time_ms,
+                        "confidence": result.confidence,
+                        "raw_output": result.raw_output,
+                        "metadata": result.metadata,
+                    },
+                )
+
+            return result
 
         except TokenLimitExceededException:
             raise
