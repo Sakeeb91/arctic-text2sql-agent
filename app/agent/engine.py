@@ -28,6 +28,7 @@ from app.agent.models import (
 )
 from app.agent.tool_factory import build_agent_tools
 from app.agent.tools import extract_sql_from_text, result_validator
+from app.cache import cache_schema, get_cached_schema
 from app.config import get_settings
 from app.exceptions import (
     AgentExecutionException,
@@ -337,11 +338,29 @@ class AgentRunner:
         if db_context.database_id in self._schema_cache:
             return self._schema_cache[db_context.database_id]
 
+        if self._settings.cache.enabled:
+            cached_payload = await get_cached_schema(db_context.database_id)
+            if isinstance(cached_payload, dict):
+                cached_description = cached_payload.get("serialized_schema")
+                if cached_description:
+                    self._schema_cache[db_context.database_id] = cached_description
+                    return cached_description
+
         introspector = SchemaIntrospector(db_context.engine)
         schema = await introspector.get_schema(db_context.database_id)
         description = introspector.serialize_for_prompt(schema)
 
         self._schema_cache[db_context.database_id] = description
+        if self._settings.cache.enabled:
+            await cache_schema(
+                db_context.database_id,
+                {
+                    "schema_info": schema.to_dict(),
+                    "serialized_schema": description,
+                    "table_names": [table.name for table in schema.tables],
+                    "dialect": schema.dialect,
+                },
+            )
         return description
 
     def _build_instructions(self, db_context: DatabaseContext, execute: bool) -> str:
