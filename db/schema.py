@@ -42,6 +42,19 @@ class ColumnInfo:
             "comment": self.comment,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ColumnInfo":
+        """Create from dictionary."""
+        return cls(
+            name=data.get("name", ""),
+            data_type=data.get("data_type", ""),
+            nullable=bool(data.get("nullable", True)),
+            primary_key=bool(data.get("primary_key", False)),
+            foreign_key=data.get("foreign_key"),
+            default=data.get("default"),
+            comment=data.get("comment"),
+        )
+
 
 @dataclass
 class ForeignKeyInfo:
@@ -60,6 +73,16 @@ class ForeignKeyInfo:
             "references_column": self.references_column,
             "constraint_name": self.constraint_name,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ForeignKeyInfo":
+        """Create from dictionary."""
+        return cls(
+            column=data.get("column", ""),
+            references_table=data.get("references_table", ""),
+            references_column=data.get("references_column", ""),
+            constraint_name=data.get("constraint_name"),
+        )
 
 
 @dataclass
@@ -84,6 +107,23 @@ class TableInfo:
             "comment": self.comment,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TableInfo":
+        """Create from dictionary."""
+        return cls(
+            name=data.get("name", ""),
+            columns=[
+                ColumnInfo.from_dict(item) for item in data.get("columns", [])
+            ],
+            foreign_keys=[
+                ForeignKeyInfo.from_dict(item)
+                for item in data.get("foreign_keys", [])
+            ],
+            primary_keys=list(data.get("primary_keys", [])),
+            row_count=data.get("row_count"),
+            comment=data.get("comment"),
+        )
+
 
 @dataclass
 class SchemaInfo:
@@ -103,6 +143,28 @@ class SchemaInfo:
             "table_count": len(self.tables),
             "last_updated": self.last_updated.isoformat(),
         }
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        database_id: str | None = None,
+    ) -> "SchemaInfo":
+        """Create from dictionary."""
+        last_updated_raw = data.get("last_updated")
+        last_updated = datetime.now()
+        if isinstance(last_updated_raw, str):
+            try:
+                last_updated = datetime.fromisoformat(last_updated_raw)
+            except ValueError:
+                last_updated = datetime.now()
+
+        return cls(
+            database_id=database_id or data.get("database_id", ""),
+            dialect=data.get("dialect", "unknown"),
+            tables=[TableInfo.from_dict(item) for item in data.get("tables", [])],
+            last_updated=last_updated,
+        )
 
     def get_table(self, table_name: str) -> TableInfo:
         """Get table by name."""
