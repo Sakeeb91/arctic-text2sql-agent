@@ -4,7 +4,7 @@ Few-shot example repository API routes (Issue #16).
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from app.exceptions import ValidationException
@@ -91,6 +91,7 @@ class ExampleSearchResponse(BaseModel):
 @limiter.limit("10/minute")
 async def create_example(
     request: Request,
+    response: Response,
     example_request: ExampleCreateRequest,
 ) -> ExampleResponse:
     """Create a new few-shot example."""
@@ -142,6 +143,7 @@ async def create_example(
 @limiter.limit("30/minute")
 async def get_example(
     request: Request,
+    response: Response,
     example_id: str,
 ) -> ExampleResponse:
     """Retrieve a specific example."""
@@ -154,6 +156,7 @@ async def get_example(
 @limiter.limit("20/minute")
 async def list_examples(
     request: Request,
+    response: Response,
     database_id: str | None = None,
     verified_only: bool = False,
     limit: int = 100,
@@ -174,6 +177,7 @@ async def list_examples(
 @limiter.limit("20/minute")
 async def search_examples(
     request: Request,
+    response: Response,
     search_request: ExampleSearchRequest,
 ) -> ExampleSearchResponse:
     """Search for relevant examples."""
@@ -196,6 +200,7 @@ async def search_examples(
 @limiter.limit("10/minute")
 async def update_example(
     request: Request,
+    response: Response,
     example_id: str,
     update_request: ExampleUpdateRequest,
 ) -> ExampleResponse:
@@ -217,6 +222,7 @@ async def update_example(
 @limiter.limit("10/minute")
 async def delete_example(
     request: Request,
+    response: Response,
     example_id: str,
 ) -> dict[str, Any]:
     """Delete a stored example."""
