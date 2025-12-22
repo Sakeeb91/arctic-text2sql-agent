@@ -1,73 +1,18 @@
-# Dependabot configuration for automated dependency updates
+# Dependabot configuration
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+#
+# SECURITY UPDATES ONLY
+# =====================
+# Scheduled version updates are disabled to reduce PR noise.
+# Dependabot will still create PRs for security vulnerabilities (CVEs)
+# detected by GitHub's security advisory database.
+#
+# To manually update dependencies:
+#   pip install --upgrade <package>
+#   pip freeze > requirements.txt
+#
+# To check for outdated packages:
+#   pip list --outdated
 
 version: 2
-updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "python"
-    reviewers:
-      - "Sakeeb91"
-    groups:
-      # Group minor/patch updates together
-      python-minor:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      # Security updates always separate
-    ignore:
-      # Ignore major version updates for ML libraries (require manual testing)
-      - dependency-name: "torch"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "transformers"
-        update-types: ["version-update:semver-major"]
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "ci"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "github-actions"
-    reviewers:
-      - "Sakeeb91"
-
-  # Docker dependencies
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 2
-    commit-message:
-      prefix: "docker"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-    reviewers:
-      - "Sakeeb91"
+updates: []
