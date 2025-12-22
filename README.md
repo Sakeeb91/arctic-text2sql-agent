@@ -112,6 +112,41 @@ curl -X POST http://localhost:8000/api/v1/query \
 }
 ```
 
+## Multi-Database Setup
+
+Enable multi-db routing and register additional databases per tenant.
+
+1) Set environment flags:
+```env
+MULTIDB_ENABLED=true
+MULTIDB_REQUIRE_CONNECTION_TEST=true
+```
+
+2) Register a database (schema registration primes cache):
+```bash
+curl -X POST http://localhost:8000/api/v1/schema/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "database_id": "analytics",
+    "connection_string": "postgresql://user:pass@host:5432/analytics",
+    "dialect": "postgresql"
+  }'
+```
+
+3) Use the `database_id` in queries:
+```bash
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Show daily signups",
+    "database_id": "analytics",
+    "execute": false
+  }'
+```
+
+Single-tenant fallback: set `MULTIDB_ENABLED=false` to route all requests to the
+configured `DATABASE_URL`.
+
 ## Architecture
 
 ```
