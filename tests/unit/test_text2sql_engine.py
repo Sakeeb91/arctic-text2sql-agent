@@ -677,6 +677,8 @@ class TestGlobalEngineManagement:
                         backoff_max_seconds=0.2,
                         fallback_enabled=True,
                     ),
+                    cache=MagicMock(enabled=False),
+                    huggingface=MagicMock(model_name="test-model"),
                 )
 
                 engine = await get_text2sql_engine()
