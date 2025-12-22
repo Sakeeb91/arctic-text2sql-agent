@@ -24,7 +24,6 @@ from db.registry import DatabaseConfig, DatabaseRegistry, reset_database_registr
 from db.schema import ColumnInfo, SchemaInfo, TableInfo
 from tests.e2e.seed_data import E2E_TEST_DATA, seed_database
 
-
 # =============================================================================
 # Event Loop Fixture for Module-Scoped Async Fixtures
 # =============================================================================
@@ -87,6 +86,17 @@ def pytest_configure(config: Any) -> None:
 # =============================================================================
 
 
+def _convert_to_async_url(url: str) -> str:
+    """Convert a sync database URL to async format."""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif url.startswith("mysql://"):
+        return url.replace("mysql://", "mysql+aiomysql://", 1)
+    elif url.startswith("sqlite://"):
+        return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    return url
+
+
 @pytest_asyncio.fixture(scope="module")
 async def e2e_engine() -> AsyncGenerator[Any, None]:
     """
@@ -97,15 +107,18 @@ async def e2e_engine() -> AsyncGenerator[Any, None]:
     """
     db_url = get_e2e_database_url()
 
+    # Convert to async URL if needed
+    async_url = _convert_to_async_url(db_url)
+
     engine_kwargs: dict[str, Any] = {
         "echo": False,
     }
 
-    if "sqlite" in db_url:
+    if "sqlite" in async_url:
         engine_kwargs["connect_args"] = {"check_same_thread": False}
         engine_kwargs["poolclass"] = StaticPool
 
-    engine = create_async_engine(db_url, **engine_kwargs)
+    engine = create_async_engine(async_url, **engine_kwargs)
 
     yield engine
 
@@ -316,11 +329,22 @@ async def e2e_registry(
     # Create new registry
     registry = DatabaseRegistry()
 
-    # Create config with in-memory SQLite
+    # Create config - use async URL for proper driver loading
+    db_url = get_e2e_database_url()
+    async_url = _convert_to_async_url(db_url)
+
+    # Detect dialect from URL
+    if "postgresql" in db_url:
+        dialect = SQLDialect.POSTGRESQL
+    elif "mysql" in db_url:
+        dialect = SQLDialect.MYSQL
+    else:
+        dialect = SQLDialect.SQLITE
+
     config = DatabaseConfig(
         database_id="e2e_test",
-        connection_string=get_e2e_database_url(),
-        dialect=SQLDialect.SQLITE,
+        connection_string=async_url,
+        dialect=dialect,
         display_name="E2E Test Database",
         description="Database for end-to-end testing",
     )
