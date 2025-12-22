@@ -482,6 +482,24 @@ class TestQueryStreamerExecution:
 
         assert events[-1].event_type == StreamEventType.QUERY_COMPLETE
 
+    @pytest.mark.asyncio
+    async def test_stream_reasoning_agent_format(self) -> None:
+        """Test reasoning streaming for agent-style steps."""
+        streamer = QueryStreamer()
+        step = SimpleNamespace(
+            step_number=1,
+            content="Plan query",
+            tool_name="schema_inspector",
+            tool_output="ok",
+        )
+        result = SimpleNamespace(reasoning_trace=[step])
+
+        events = await collect_events(streamer._stream_reasoning_from_result(result))
+
+        assert events[0].event_type == StreamEventType.REASONING_STEP
+        assert events[0].data["action"] == "schema_inspector"
+        assert events[-1].event_type == StreamEventType.REASONING_COMPLETE
+
 
 class TestStreamResults:
     """Tests for stream_results function."""
