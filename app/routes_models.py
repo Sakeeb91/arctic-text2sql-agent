@@ -4,7 +4,7 @@ Model versioning API routes (Issue #16).
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
@@ -58,6 +58,7 @@ class ModelVersionResponse(BaseModel):
 @limiter.limit("20/minute")
 async def list_model_versions(
     request: Request,
+    response: Response,
     status: ModelVersionStatus | None = None,
     limit: int = 100,
     offset: int = 0,
@@ -72,6 +73,7 @@ async def list_model_versions(
 @limiter.limit("30/minute")
 async def get_active_model_version(
     request: Request,
+    response: Response,
 ) -> ModelVersionResponse | None:
     """Get active model version."""
     manager = await get_model_version_manager()
@@ -83,6 +85,7 @@ async def get_active_model_version(
 @limiter.limit("30/minute")
 async def get_model_version(
     request: Request,
+    response: Response,
     version_id: str,
 ) -> ModelVersionResponse:
     """Retrieve model version details."""
@@ -99,6 +102,7 @@ async def get_model_version(
 @limiter.limit("10/minute")
 async def register_model_version(
     request: Request,
+    response: Response,
     version_request: ModelVersionCreateRequest,
 ) -> ModelVersionResponse:
     """Register a new model version."""
@@ -124,6 +128,7 @@ async def register_model_version(
 @limiter.limit("10/minute")
 async def activate_model_version(
     request: Request,
+    response: Response,
     version_id: str,
 ) -> ModelVersionResponse:
     """Activate a model version."""
