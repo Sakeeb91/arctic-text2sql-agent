@@ -350,6 +350,50 @@ class TestSQLValidator:
         status, errors = validator.validate("SELECT * FROM users")
         assert status == ValidationStatus.VALID
 
+    def test_semantic_aggregate_warning(self) -> None:
+        """Test semantic warnings for missing aggregation."""
+        validator = SQLValidator()
+        query = "How many customers do we have?"
+        intent = classify_query_intent(query)
+
+        feedback = validator.check_semantics(
+            natural_query=query,
+            sql="SELECT * FROM customers",
+            intent=intent,
+        )
+
+        assert any("aggregation" in warning.lower() for warning in feedback.warnings)
+        assert feedback.suggestions
+
+    def test_semantic_join_warning(self) -> None:
+        """Test semantic warnings for missing JOIN."""
+        validator = SQLValidator()
+        query = "List customers with their orders"
+        intent = classify_query_intent(query)
+
+        feedback = validator.check_semantics(
+            natural_query=query,
+            sql="SELECT * FROM customers",
+            intent=intent,
+        )
+
+        assert any("join" in warning.lower() for warning in feedback.warnings)
+
+    def test_semantic_top_limit_warning(self) -> None:
+        """Test semantic warnings for missing LIMIT."""
+        validator = SQLValidator()
+        query = "Show top 5 products by revenue"
+        intent = classify_query_intent(query)
+
+        feedback = validator.check_semantics(
+            natural_query=query,
+            sql="SELECT * FROM products ORDER BY revenue DESC",
+            intent=intent,
+        )
+
+        assert any("limit" in warning.lower() for warning in feedback.warnings)
+        assert any("limit 5" in suggestion.lower() for suggestion in feedback.suggestions)
+
 
 # =============================================================================
 # Test Text2SQL Engine
