@@ -505,6 +505,11 @@ class TestCacheManagerWithMockedRedis:
         with patch("app.cache.get_settings") as mock_settings:
             mock_settings.return_value.cache.redis_url = "redis://localhost:6379/0"
             mock_settings.return_value.cache.ttl = 3600
+            mock_settings.return_value.cache.query_ttl = 3600
+            mock_settings.return_value.cache.model_ttl = 7200
+            mock_settings.return_value.cache.schema_ttl = 86400
+            mock_settings.return_value.cache.max_memory_entries = 1000
+            mock_settings.return_value.monitoring.enable_metrics = False
 
             manager = CacheManager()
 
