@@ -442,6 +442,45 @@ class TestQueryStreamerExecution:
         assert any(event.event_type == StreamEventType.SQL_GENERATED for event in events)
         assert events[-1].event_type == StreamEventType.QUERY_COMPLETE
 
+    @pytest.mark.asyncio
+    async def test_stream_query_allows_empty_sql_without_execution(
+        self,
+        monkeypatch,
+    ) -> None:
+        """Test stream_query completes when SQL is empty and execute is False."""
+        streamer = QueryStreamer()
+
+        settings = SimpleNamespace(
+            agent=SimpleNamespace(enabled=False, use_legacy_fallback=False)
+        )
+        monkeypatch.setattr("app.streaming.get_settings", lambda: settings)
+
+        class StubEngine:
+            async def generate_sql(self, **kwargs) -> SimpleNamespace:
+                return SimpleNamespace(
+                    sql="",
+                    confidence=0.0,
+                    reasoning_trace=[],
+                )
+
+        async def fake_get_engine() -> StubEngine:
+            return StubEngine()
+
+        monkeypatch.setattr(
+            "app.text2sql_engine.get_text2sql_engine",
+            fake_get_engine,
+        )
+
+        events = await collect_events(
+            streamer.stream_query(
+                natural_query="Show users",
+                database_id="db1",
+                execute=False,
+            )
+        )
+
+        assert events[-1].event_type == StreamEventType.QUERY_COMPLETE
+
 
 class TestStreamResults:
     """Tests for stream_results function."""
