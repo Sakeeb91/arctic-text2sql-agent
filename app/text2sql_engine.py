@@ -993,6 +993,42 @@ class Text2SQLEngine:
             "half_open_attempts": state.half_open_attempts,
         }
 
+    async def execute_sql(
+        self,
+        sql: str,
+        database_id: str | None = None,
+        max_rows: int = 1000,
+    ) -> "QueryResult":
+        """
+        Execute a SQL query using the safe executor.
+
+        Args:
+            sql: SQL query to execute
+            database_id: Optional database identifier for logging
+            max_rows: Maximum rows to return
+
+        Returns:
+            QueryResult with execution results
+        """
+        from db.executor import QueryResult, SafeQueryExecutor
+
+        async with self._db_manager.session() as session:
+            executor = SafeQueryExecutor(
+                session=session,
+                allow_mutations=False,
+                max_rows=max_rows,
+            )
+
+            result: QueryResult = await executor.execute(sql)
+
+        logger.info(
+            "text2sql_execute_sql",
+            database_id=database_id or "default",
+            row_count=result.row_count,
+        )
+
+        return result
+
     async def _execute_sql(
         self,
         sql: str,
