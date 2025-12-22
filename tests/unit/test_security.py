@@ -63,15 +63,18 @@ class TestJWTAuthentication:
         assert payload["sub"] == "test_user"
 
     @pytest.mark.asyncio
-    async def test_verify_api_key_valid(self):
+    async def test_verify_api_key_valid(self, monkeypatch: pytest.MonkeyPatch):
         """Test API key verification with valid key."""
-        settings = get_settings()
-        is_valid = await verify_api_key(settings.security.secret_key)
+        monkeypatch.setenv("API_KEYS", "valid-key:read")
+        get_settings.cache_clear()
+        is_valid = await verify_api_key("valid-key")
         assert is_valid is True
 
     @pytest.mark.asyncio
-    async def test_verify_api_key_invalid(self):
+    async def test_verify_api_key_invalid(self, monkeypatch: pytest.MonkeyPatch):
         """Test API key verification with invalid key."""
+        monkeypatch.setenv("API_KEYS", "valid-key:read")
+        get_settings.cache_clear()
         is_valid = await verify_api_key("invalid_key")
         assert is_valid is False
 
