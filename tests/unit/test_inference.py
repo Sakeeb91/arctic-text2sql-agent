@@ -336,6 +336,41 @@ class TestInferenceEngine:
             assert result.inference_time_ms > 0
 
     @pytest.mark.asyncio
+    async def test_generate_uses_cache(
+        self, mock_settings: MagicMock, mock_model_loader: MagicMock
+    ) -> None:
+        """Test inference uses cached result when available."""
+        cached_payload = {
+            "generated_text": "SELECT * FROM cached",
+            "sql": "SELECT * FROM cached",
+            "input_tokens": 5,
+            "output_tokens": 3,
+            "inference_time_ms": 10.0,
+            "confidence": 0.9,
+            "raw_output": "SELECT * FROM cached",
+            "metadata": {"cached_at": 0},
+        }
+        mock_settings.cache.enabled = True
+
+        with (
+            patch("models.inference.get_settings", return_value=mock_settings),
+            patch(
+                "models.inference.get_cached_inference_result",
+                new=AsyncMock(return_value=cached_payload),
+            ),
+            patch(
+                "models.inference.cache_inference_result",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            engine = InferenceEngine(mock_model_loader)
+            result = await engine.generate("Question: Show users")
+
+            assert result.sql == "SELECT * FROM cached"
+            assert result.metadata.get("cached") is True
+            assert mock_model_loader.model.generate.call_count == 0
+
+    @pytest.mark.asyncio
     async def test_generate_with_sql_extraction(
         self, mock_settings: MagicMock, mock_model_loader: MagicMock
     ) -> None:
