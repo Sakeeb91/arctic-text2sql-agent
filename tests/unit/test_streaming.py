@@ -162,6 +162,36 @@ class TestQueryStreamerExecution:
         assert len(batch_events) == 2
         assert events[-1].event_type == StreamEventType.RESULT_COMPLETE
 
+    @pytest.mark.asyncio
+    async def test_stream_execution_legacy_emits_error(self) -> None:
+        """Test legacy execution surfaces execution failures."""
+        from db.executor import QueryResult
+
+        streamer = QueryStreamer(batch_size=2)
+        query_result = QueryResult(
+            success=False,
+            sql="SELECT 1",
+            rows=[],
+            row_count=0,
+            error="Execution failed",
+        )
+
+        class StubEngine:
+            async def execute_sql(
+                self,
+                sql: str,
+                database_id: str,
+                max_rows: int,
+            ) -> QueryResult:
+                return query_result
+
+        events = await collect_events(
+            streamer._stream_execution_legacy(StubEngine(), "SELECT 1", "db1", max_rows=5)
+        )
+
+        assert events[-1].event_type == StreamEventType.QUERY_ERROR
+        assert all(event.event_type != StreamEventType.RESULT_COMPLETE for event in events)
+
 
 class TestStreamResults:
     """Tests for stream_results function."""
