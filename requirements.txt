@@ -40,7 +40,7 @@ hiredis>=2.3.0  # C parser for better Redis performance
 
 # Monitoring & Logging
 prometheus-client==0.23.1
-structlog==24.1.0
+structlog==25.5.0
 
 # Distributed Tracing (Issue #9: Monitoring & Observability)
 opentelemetry-api>=1.20.0
