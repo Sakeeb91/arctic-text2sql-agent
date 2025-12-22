@@ -359,3 +359,5 @@ GET /api/v1/cache/stats
 ```http
 POST /api/v1/cache/invalidate
 ```
+
+Supports namespace invalidation for `query`, `model`, `prompt`, `schema`, `inference`, and `validation`.
