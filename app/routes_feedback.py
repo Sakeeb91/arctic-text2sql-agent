@@ -4,7 +4,7 @@ Feedback collection API routes (Issue #16).
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
@@ -78,6 +78,7 @@ class FeedbackResponse(BaseModel):
 @limiter.limit("10/minute")
 async def submit_feedback(
     request: Request,
+    response: Response,
     feedback_request: FeedbackCreateRequest,
 ) -> FeedbackResponse:
     """Submit feedback for a generated query."""
@@ -142,6 +143,7 @@ async def submit_feedback(
 @limiter.limit("30/minute")
 async def get_feedback(
     request: Request,
+    response: Response,
     feedback_id: str,
 ) -> FeedbackResponse:
     """Retrieve a feedback entry."""
@@ -154,6 +156,7 @@ async def get_feedback(
 @limiter.limit("20/minute")
 async def list_feedback(
     request: Request,
+    response: Response,
     database_id: str | None = None,
     status: FeedbackStatus | None = None,
     limit: int = 100,
@@ -178,6 +181,7 @@ async def list_feedback(
 @limiter.limit("10/minute")
 async def update_feedback_status(
     request: Request,
+    response: Response,
     feedback_id: str,
     update_request: FeedbackStatusUpdateRequest,
 ) -> FeedbackResponse:
