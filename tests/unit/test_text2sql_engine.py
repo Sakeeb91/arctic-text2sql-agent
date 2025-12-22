@@ -429,6 +429,8 @@ class TestText2SQLEngine:
             backoff_max_seconds=0.2,
             fallback_enabled=True,
         )
+        settings.cache = MagicMock(enabled=False)
+        settings.huggingface = MagicMock(model_name="test-model")
         return settings
 
     def test_initialization(
