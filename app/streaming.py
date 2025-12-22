@@ -212,6 +212,16 @@ class QueryStreamer:
                 data={"stage": "generated", "progress": 0.5},
             )
 
+            if execute and not result.sql:
+                yield StreamEvent(
+                    event_type=StreamEventType.QUERY_ERROR,
+                    data={
+                        "error": "No SQL generated for execution",
+                        "stage": "generation",
+                    },
+                )
+                return
+
             # Execute if requested
             if execute and result.sql:
                 if use_agent:
