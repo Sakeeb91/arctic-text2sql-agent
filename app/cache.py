@@ -21,6 +21,7 @@ from typing import Any, TypeVar
 
 from app.config import get_settings
 from app.logging_config import get_logger
+from app.monitoring.metrics import get_metrics_registry
 
 logger = get_logger(__name__)
 
@@ -129,17 +130,21 @@ class CacheManager:
         self._redis: Any = None
         self._connected = False
         self._settings = get_settings()
+        self._metrics = get_metrics_registry()
+        self._metrics_enabled = self._settings.monitoring.enable_metrics
         self._stats = CacheStats()
         self._in_memory_cache: dict[str, CacheEntry] = {}
         self._lock = asyncio.Lock()
+        self._max_memory_entries = self._settings.cache.max_memory_entries
 
         # TTL defaults per namespace (in seconds)
         self._ttl_defaults: dict[CacheNamespace, int] = {
-            CacheNamespace.QUERY_RESULT: 3600,  # 1 hour
-            CacheNamespace.MODEL_OUTPUT: 7200,  # 2 hours
-            CacheNamespace.SCHEMA: 86400,  # 24 hours
-            CacheNamespace.INFERENCE: 1800,  # 30 minutes
-            CacheNamespace.VALIDATION: 3600,  # 1 hour
+            CacheNamespace.QUERY_RESULT: self._settings.cache.query_ttl,  # 1 hour
+            CacheNamespace.MODEL_OUTPUT: self._settings.cache.model_ttl,  # 2 hours
+            CacheNamespace.PROMPT: self._settings.cache.model_ttl,  # 2 hours
+            CacheNamespace.SCHEMA: self._settings.cache.schema_ttl,  # 24 hours
+            CacheNamespace.INFERENCE: self._settings.cache.model_ttl,  # 2 hours
+            CacheNamespace.VALIDATION: self._settings.cache.ttl,  # 1 hour
         }
 
     async def connect(self) -> bool:
