@@ -4,7 +4,7 @@ Feedback collection API routes (Issue #16).
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
@@ -12,6 +12,8 @@ from app.exceptions import ValidationException
 from app.logging_config import get_logger
 from app.security import (
     limiter,
+    require_auth,
+    require_mutation_scope,
     validate_database_id,
     validate_natural_language_query,
 )
@@ -21,7 +23,11 @@ from db.feedback import FeedbackRecord, FeedbackStatus, get_feedback_store
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/feedback", tags=["Feedback"])
+router = APIRouter(
+    prefix="/api/v1/feedback",
+    tags=["Feedback"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 class FeedbackCreateRequest(BaseModel):
@@ -64,10 +70,15 @@ class FeedbackResponse(BaseModel):
         return cls(**data)
 
 
-@router.post("", response_model=FeedbackResponse)
+@router.post(
+    "",
+    response_model=FeedbackResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def submit_feedback(
-    request: Request, feedback_request: FeedbackCreateRequest
+    request: Request,
+    feedback_request: FeedbackCreateRequest,
 ) -> FeedbackResponse:
     """Submit feedback for a generated query."""
     is_valid_query, query_errors = validate_natural_language_query(
@@ -129,7 +140,10 @@ async def submit_feedback(
 
 @router.get("/{feedback_id}", response_model=FeedbackResponse)
 @limiter.limit("30/minute")
-async def get_feedback(request: Request, feedback_id: str) -> FeedbackResponse:
+async def get_feedback(
+    request: Request,
+    feedback_id: str,
+) -> FeedbackResponse:
     """Retrieve a feedback entry."""
     store = await get_feedback_store()
     record = await store.get_feedback(feedback_id)
@@ -156,7 +170,11 @@ async def list_feedback(
     return [FeedbackResponse.from_record(record) for record in records]
 
 
-@router.patch("/{feedback_id}/status", response_model=FeedbackResponse)
+@router.patch(
+    "/{feedback_id}/status",
+    response_model=FeedbackResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def update_feedback_status(
     request: Request,
