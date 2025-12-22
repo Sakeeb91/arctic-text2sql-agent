@@ -4,11 +4,11 @@ Model versioning API routes (Issue #16).
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
-from app.security import limiter
+from app.security import limiter, require_auth, require_mutation_scope
 from models.versioning import (
     ModelVersion,
     ModelVersionManager,
@@ -18,7 +18,11 @@ from models.versioning import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/models", tags=["Model Versioning"])
+router = APIRouter(
+    prefix="/api/v1/models",
+    tags=["Model Versioning"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 class ModelVersionCreateRequest(BaseModel):
@@ -66,7 +70,9 @@ async def list_model_versions(
 
 @router.get("/versions/active", response_model=ModelVersionResponse | None)
 @limiter.limit("30/minute")
-async def get_active_model_version(request: Request) -> ModelVersionResponse | None:
+async def get_active_model_version(
+    request: Request,
+) -> ModelVersionResponse | None:
     """Get active model version."""
     manager = await get_model_version_manager()
     version = await manager.get_active_version()
@@ -75,17 +81,25 @@ async def get_active_model_version(request: Request) -> ModelVersionResponse | N
 
 @router.get("/versions/{version_id}", response_model=ModelVersionResponse)
 @limiter.limit("30/minute")
-async def get_model_version(request: Request, version_id: str) -> ModelVersionResponse:
+async def get_model_version(
+    request: Request,
+    version_id: str,
+) -> ModelVersionResponse:
     """Retrieve model version details."""
     manager = await get_model_version_manager()
     version = await manager.get_version(version_id)
     return ModelVersionResponse.from_record(version)
 
 
-@router.post("/versions", response_model=ModelVersionResponse)
+@router.post(
+    "/versions",
+    response_model=ModelVersionResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def register_model_version(
-    request: Request, version_request: ModelVersionCreateRequest
+    request: Request,
+    version_request: ModelVersionCreateRequest,
 ) -> ModelVersionResponse:
     """Register a new model version."""
     manager = await get_model_version_manager()
@@ -102,10 +116,15 @@ async def register_model_version(
     return ModelVersionResponse.from_record(version)
 
 
-@router.post("/versions/{version_id}/activate", response_model=ModelVersionResponse)
+@router.post(
+    "/versions/{version_id}/activate",
+    response_model=ModelVersionResponse,
+    dependencies=[Depends(require_mutation_scope)],
+)
 @limiter.limit("10/minute")
 async def activate_model_version(
-    request: Request, version_id: str
+    request: Request,
+    version_id: str,
 ) -> ModelVersionResponse:
     """Activate a model version."""
     manager = await get_model_version_manager()
