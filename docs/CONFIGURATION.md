@@ -107,8 +107,32 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:8080
 
 ```env
 SECRET_KEY=your-secret-key-here   # For JWT tokens
+
+# Enable auth enforcement
+AUTH_ENABLED=true
+JWT_AUTH_ENABLED=true
+API_KEY_AUTH_ENABLED=true
+
+# API keys (comma-separated, optional scopes)
+API_KEYS=key-1:read|write
+API_KEY_SCOPES=read
+
+# Optional local user credentials for issuing JWTs
+# Format: username:password:scope1|scope2;username2:password:scope1|scope2
+AUTH_USERS=admin:change_me:admin|write|read
+
+# JWT claim names for scopes/roles
+JWT_SCOPES_CLAIM=scopes
+JWT_ROLE_CLAIM=role
+
+# Scopes required for mutation/management endpoints
+MUTATION_SCOPES=write,admin
+
+# Rate limiting
 RATE_LIMIT_PER_MINUTE=60
 RATE_LIMIT_BURST=10
+RATE_LIMIT_STORAGE_URL=redis://localhost:6379/1
+RATE_LIMIT_HEADERS_ENABLED=true
 ```
 
 ## Monitoring Settings
