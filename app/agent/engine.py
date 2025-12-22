@@ -672,6 +672,15 @@ class AgentText2SQL:
         else:
             self._schema_cache.clear()
 
+        if self._settings.cache.enabled:
+            try:
+                from app.cache import invalidate_schema_cache as invalidate_cache
+
+                loop = asyncio.get_running_loop()
+                loop.create_task(invalidate_cache(database_id))
+            except RuntimeError:
+                asyncio.run(invalidate_cache(database_id))
+
     def _calculate_confidence(
         self,
         model_confidence: float,
