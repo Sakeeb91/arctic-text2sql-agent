@@ -5,7 +5,7 @@ These tests verify inference functionality using mocks
 to avoid requiring actual model inference.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import torch
@@ -255,6 +255,7 @@ class TestInferenceEngine:
         """Create mock settings."""
         settings = MagicMock()
         settings.agent.min_confidence = 0.7
+        settings.cache = MagicMock(enabled=False)
         return settings
 
     @pytest.fixture
