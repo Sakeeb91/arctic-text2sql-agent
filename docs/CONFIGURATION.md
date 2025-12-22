@@ -144,6 +144,25 @@ ENABLE_TRACING=false
 OTLP_ENDPOINT=http://localhost:4317
 ```
 
+## Cache Settings
+
+```env
+# Toggle caching (schema/prompt/inference outputs)
+CACHE_ENABLED=true
+
+# Optional Redis backend for shared cache
+REDIS_URL=redis://localhost:6379/0
+
+# TTLs (seconds)
+CACHE_TTL=3600
+CACHE_QUERY_TTL=3600
+CACHE_MODEL_TTL=7200
+CACHE_SCHEMA_TTL=86400
+
+# In-memory cache size when Redis unavailable
+CACHE_MAX_MEMORY_ENTRIES=1000
+```
+
 ## Multi-Database Support
 
 ```env
