@@ -289,11 +289,9 @@ class QueryStreamer:
         max_rows: int,
     ) -> Any:
         """Execute SQL using the legacy engine path."""
-        return await engine.generate_sql(
-            natural_query=sql,  # Pass SQL directly
+        return await engine.execute_sql(
+            sql=sql,
             database_id=database_id,
-            execute=True,
-            show_reasoning=False,
             max_rows=max_rows,
         )
 
@@ -319,8 +317,8 @@ class QueryStreamer:
                 max_rows,
             )
 
-            if result.execution_results:
-                rows = result.execution_results
+            if result.rows:
+                rows = result.rows
                 total_rows = len(rows)
 
                 # Stream results in batches
