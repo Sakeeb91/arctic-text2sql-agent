@@ -15,9 +15,14 @@ import pytest
 from jose import jwt
 
 from app.config import get_settings
+from app.exceptions import AuthorizationException
 from app.security import (
+    AuthContext,
+    authenticate_user,
     check_query_against_whitelist,
     create_access_token,
+    ensure_scopes,
+    get_auth_context,
     sanitize_input,
     scan_for_injection_patterns,
     validate_database_id,
@@ -77,6 +82,46 @@ class TestJWTAuthentication:
         get_settings.cache_clear()
         is_valid = await verify_api_key("invalid_key")
         assert is_valid is False
+
+
+class TestAuthContext:
+    """Tests for auth context helpers."""
+
+    def test_authenticate_user_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test configured user authentication."""
+        monkeypatch.setenv("AUTH_USERS", "alice:password:read|write")
+        get_settings.cache_clear()
+
+        scopes = authenticate_user("alice", "password")
+        assert scopes is not None
+        assert "read" in scopes
+        assert "write" in scopes
+
+    def test_authenticate_user_invalid(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test invalid credentials fail authentication."""
+        monkeypatch.setenv("AUTH_USERS", "alice:password:read")
+        get_settings.cache_clear()
+
+        scopes = authenticate_user("alice", "wrong")
+        assert scopes is None
+
+    @pytest.mark.asyncio
+    async def test_get_auth_context_api_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test API key authentication context."""
+        monkeypatch.setenv("API_KEYS", "test-key:read")
+        get_settings.cache_clear()
+
+        context = await get_auth_context(credentials=None, api_key="test-key")
+        assert context.auth_type == "api_key"
+        assert "read" in context.scopes
+
+    def test_ensure_scopes_denied(self) -> None:
+        """Test scope enforcement rejects insufficient scopes."""
+        auth = AuthContext(subject="user", scopes={"read"}, auth_type="api_key")
+        with pytest.raises(AuthorizationException):
+            ensure_scopes(auth, {"write"})
 
 
 class TestInputValidation:
