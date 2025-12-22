@@ -160,7 +160,11 @@ class TestQueryStreamerExecution:
 
         assert engine.called_with == ("SELECT 1", "db1", 5)
         assert events[0].event_type == StreamEventType.QUERY_PROGRESS
-        batch_events = [event for event in events if event.event_type == StreamEventType.RESULT_BATCH]
+        batch_events = [
+            event
+            for event in events
+            if event.event_type == StreamEventType.RESULT_BATCH
+        ]
         assert len(batch_events) == 2
         assert events[-1].event_type == StreamEventType.RESULT_COMPLETE
 
@@ -188,11 +192,15 @@ class TestQueryStreamerExecution:
                 return query_result
 
         events = await collect_events(
-            streamer._stream_execution_legacy(StubEngine(), "SELECT 1", "db1", max_rows=5)
+            streamer._stream_execution_legacy(
+                StubEngine(), "SELECT 1", "db1", max_rows=5
+            )
         )
 
         assert events[-1].event_type == StreamEventType.QUERY_ERROR
-        assert all(event.event_type != StreamEventType.RESULT_COMPLETE for event in events)
+        assert all(
+            event.event_type != StreamEventType.RESULT_COMPLETE for event in events
+        )
 
     @pytest.mark.asyncio
     async def test_stream_execution_legacy_exception(self) -> None:
@@ -204,7 +212,9 @@ class TestQueryStreamerExecution:
                 raise RuntimeError("boom")
 
         events = await collect_events(
-            streamer._stream_execution_legacy(StubEngine(), "SELECT 1", "db1", max_rows=5)
+            streamer._stream_execution_legacy(
+                StubEngine(), "SELECT 1", "db1", max_rows=5
+            )
         )
 
         assert events[-1].event_type == StreamEventType.QUERY_ERROR
@@ -244,7 +254,9 @@ class TestQueryStreamerExecution:
         )
 
         assert events[-1].event_type == StreamEventType.QUERY_ERROR
-        assert all(event.event_type != StreamEventType.RESULT_COMPLETE for event in events)
+        assert all(
+            event.event_type != StreamEventType.RESULT_COMPLETE for event in events
+        )
 
     @pytest.mark.asyncio
     async def test_stream_query_executes_legacy_sql(self, monkeypatch) -> None:
@@ -300,10 +312,14 @@ class TestQueryStreamerExecution:
 
         assert engine.generate_calls == 1
         assert engine.execute_calls == 1
-        assert any(event.event_type == StreamEventType.RESULT_COMPLETE for event in events)
+        assert any(
+            event.event_type == StreamEventType.RESULT_COMPLETE for event in events
+        )
 
     @pytest.mark.asyncio
-    async def test_stream_query_skips_execution_when_disabled(self, monkeypatch) -> None:
+    async def test_stream_query_skips_execution_when_disabled(
+        self, monkeypatch
+    ) -> None:
         """Test stream_query skips execution when execute is False."""
         streamer = QueryStreamer()
 
@@ -349,7 +365,9 @@ class TestQueryStreamerExecution:
 
         assert engine.generate_calls == 1
         assert engine.execute_calls == 0
-        assert any(event.event_type == StreamEventType.QUERY_COMPLETE for event in events)
+        assert any(
+            event.event_type == StreamEventType.QUERY_COMPLETE for event in events
+        )
 
     @pytest.mark.asyncio
     async def test_stream_query_forwards_max_rows(self, monkeypatch) -> None:
@@ -440,7 +458,9 @@ class TestQueryStreamerExecution:
 
         assert events[0].event_type == StreamEventType.QUERY_START
         assert events[1].event_type == StreamEventType.QUERY_PROGRESS
-        assert any(event.event_type == StreamEventType.SQL_GENERATED for event in events)
+        assert any(
+            event.event_type == StreamEventType.SQL_GENERATED for event in events
+        )
         assert events[-1].event_type == StreamEventType.QUERY_COMPLETE
 
     @pytest.mark.asyncio
