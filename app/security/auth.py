@@ -8,10 +8,10 @@ This module provides:
 """
 
 import secrets
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 from fastapi import Depends, Security
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer

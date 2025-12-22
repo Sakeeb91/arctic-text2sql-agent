@@ -7,7 +7,8 @@ This module provides:
 - Rate limit exceeded handling
 """
 
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from fastapi import FastAPI, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler

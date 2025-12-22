@@ -24,7 +24,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from app.config import FewShotSettings, get_settings
 from app.cache import (
     cache_prompt,
     cache_schema,
@@ -32,6 +31,7 @@ from app.cache import (
     get_cached_prompt,
     get_cached_schema,
 )
+from app.config import FewShotSettings, get_settings
 from app.exceptions import (
     AgentMaxStepsExceededException,
     CircuitBreakerOpenException,

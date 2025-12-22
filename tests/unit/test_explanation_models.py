@@ -6,24 +6,17 @@ Tests for the data models used in the query explanation feature.
 
 from datetime import datetime, timedelta
 
-import pytest
-
 from app.explanations.models import (
     AggregateFunction,
-    ClauseBreakdown,
     ColumnReference,
     ComplexityAnalysis,
     ComplexityLevel,
     ComplexityMetrics,
     ExecutionPlanNode,
     ExplanationCacheEntry,
-    FilterCondition,
     JoinInfo,
     JoinType,
-    OptimizationHint,
-    OptimizationSuggestion,
     QueryBreakdown,
-    QueryBreakdownStep,
     QueryExplanationResult,
     QueryVisualization,
     SQLClauseType,

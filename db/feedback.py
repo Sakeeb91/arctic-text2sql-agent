@@ -7,15 +7,15 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from collections.abc import Mapping
 from typing import Any, cast
 
 from sqlalchemy import text
 
-from app.exceptions import FeedbackNotFoundException, FeedbackException
+from app.exceptions import FeedbackException, FeedbackNotFoundException
 from app.logging_config import get_logger
 from db.connection import DatabaseManager, get_database
 

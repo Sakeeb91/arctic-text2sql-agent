@@ -17,7 +17,7 @@ from app.security import (
     validate_natural_language_query,
 )
 from app.security.input_validation import validate_sql_query
-from db.examples import ExampleRecord, ExampleSearchResult, get_example_store
+from db.examples import ExampleRecord, get_example_store
 
 logger = get_logger(__name__)
 

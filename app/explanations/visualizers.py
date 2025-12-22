@@ -6,8 +6,6 @@ including ASCII tree diagrams, flow charts, and execution plan
 visualizations.
 """
 
-from typing import Any
-
 from app.explanations.models import (
     ClauseBreakdown,
     ExecutionPlanNode,

@@ -7,16 +7,16 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from collections.abc import Mapping
 from typing import Any, cast
 
 from sqlalchemy import text
 
 from app.config import get_settings
-from app.exceptions import ModelVersionNotFoundException, ModelVersioningException
+from app.exceptions import ModelVersioningException, ModelVersionNotFoundException
 from app.logging_config import get_logger
 from db.connection import DatabaseManager, get_database
 

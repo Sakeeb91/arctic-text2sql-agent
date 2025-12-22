@@ -17,8 +17,8 @@ from app.agent.engine import (
     AgentText2SQL,
     execute_sql_with_context,
     get_agent_engine,
-    resolve_database_context,
     reset_agent_engine,
+    resolve_database_context,
 )
 from app.agent.models import (
     AgentStep,
@@ -485,6 +485,7 @@ class TestExecuteSqlWithContext:
     async def test_execute_sql_with_context_returns_result(self) -> None:
         """Test query execution helper returns QueryResult."""
         from contextlib import asynccontextmanager
+
         from db.executor import QueryResult
 
         @asynccontextmanager

@@ -13,6 +13,12 @@ Phase 1.3: HuggingFace Model Integration
 - Device management (CPU/GPU/MPS)
 """
 
+from models.fine_tuning import (
+    FineTuningExample,
+    FineTuningPipeline,
+    get_fine_tuning_pipeline,
+    reset_fine_tuning_pipeline,
+)
 from models.inference import (
     GenerationConfig,
     InferenceEngine,
@@ -39,12 +45,6 @@ from models.prompts import (
     build_prompt,
     format_schema_for_prompt,
     get_prompt_template,
-)
-from models.fine_tuning import (
-    FineTuningExample,
-    FineTuningPipeline,
-    get_fine_tuning_pipeline,
-    reset_fine_tuning_pipeline,
 )
 from models.versioning import (
     ModelVersion,

@@ -13,8 +13,8 @@ Tools:
 import asyncio
 import re
 import time
-from collections.abc import Callable
-from typing import Any, Coroutine, TypeVar
+from collections.abc import Callable, Coroutine
+from typing import Any, TypeVar
 
 from smolagents import tool
 
@@ -88,8 +88,8 @@ def create_sql_executor_tool(
 
         {schema_placeholder}
         """
-        from db.executor import SafeQueryExecutor
         from app.monitoring.tracing import get_tracing_manager
+        from db.executor import SafeQueryExecutor
 
         logger.info(
             "sql_executor_tool_called",
@@ -317,8 +317,8 @@ def create_schema_inspector_tool(
         Returns:
             Detailed schema information for the table, or error if not found.
         """
-        from db.schema import SchemaIntrospector
         from app.monitoring.tracing import get_tracing_manager
+        from db.schema import SchemaIntrospector
 
         logger.info(
             "schema_inspector_tool_called",
@@ -444,9 +444,9 @@ def create_sql_generator_tool(
         Returns:
             Generated SQL query or error message.
         """
+        from app.monitoring.tracing import get_tracing_manager
         from models.inference import InferenceEngine
         from models.prompts import build_prompt
-        from app.monitoring.tracing import get_tracing_manager
 
         logger.info(
             "sql_generator_tool_called",

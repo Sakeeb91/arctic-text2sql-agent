@@ -11,7 +11,6 @@ from app.logging_config import get_logger
 from app.security import limiter, require_auth, require_mutation_scope
 from models.versioning import (
     ModelVersion,
-    ModelVersionManager,
     ModelVersionStatus,
     get_model_version_manager,
 )

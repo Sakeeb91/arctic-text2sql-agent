@@ -6,13 +6,13 @@ Tests for the main ExplanationEngine class.
 
 import pytest
 
+from app.exceptions import ExplanationNotFoundException
 from app.explanations.engine import (
     ExplanationEngine,
     get_explanation_engine,
     reset_explanation_engine,
 )
 from app.explanations.models import VisualizationFormat
-from app.exceptions import ExplanationNotFoundException, SQLParsingException
 
 
 class TestExplanationEngine:

@@ -9,9 +9,9 @@ SQL generation.
 import asyncio
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Callable
 
 from smolagents import CodeAgent
 from smolagents.agents import LogLevel

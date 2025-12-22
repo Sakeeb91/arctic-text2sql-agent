@@ -3,7 +3,8 @@ Agent model backends for local and remote inference.
 """
 
 import asyncio
-from typing import Any, Coroutine, TypeVar
+from collections.abc import Coroutine
+from typing import Any, TypeVar
 
 from smolagents import InferenceClientModel
 from smolagents.models import ChatMessage, MessageRole, Model, get_clean_message_list

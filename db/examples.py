@@ -10,9 +10,9 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from collections.abc import Mapping
 from typing import Any, cast
 
 from sqlalchemy import text
