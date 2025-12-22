@@ -13,33 +13,33 @@
 # ============================================================================
 
 # Core API Framework
-fastapi==0.109.2
-uvicorn[standard]==0.27.1
-pydantic==2.6.1
-pydantic-settings==2.1.0
+fastapi==0.127.0
+uvicorn[standard]==0.40.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
 sse-starlette>=2.0.0  # Server-Sent Events for streaming (Issue #8)
 
 # Database
-sqlalchemy==2.0.27
-psycopg2-binary==2.9.9
-alembic==1.13.1
+sqlalchemy==2.0.45
+psycopg2-binary==2.9.11
+alembic==1.17.2
 
 # Async Database Drivers
-asyncpg==0.29.0
-aiomysql==0.2.0
-aiosqlite==0.19.0
+asyncpg==0.31.0
+aiomysql==0.3.2
+aiosqlite==0.22.0
 
 # Utilities
-python-dotenv==1.0.1
+python-dotenv==1.2.1
 tenacity==9.1.2
-pyyaml==6.0.1
+pyyaml==6.0.3
 
 # Caching (Issue #8: Performance Optimization)
 redis>=5.0.0
 hiredis>=2.3.0  # C parser for better Redis performance
 
 # Monitoring & Logging
-prometheus-client==0.19.0
+prometheus-client==0.23.1
 structlog==24.1.0
 
 # Distributed Tracing (Issue #9: Monitoring & Observability)
@@ -53,7 +53,7 @@ opentelemetry-exporter-prometheus>=0.41b0
 
 # Security
 cryptography>=39.0.0
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 slowapi==0.1.9
 
@@ -85,11 +85,11 @@ smolagents>=1.0.0
 pytest==7.4.4
 pytest-asyncio==0.23.4
 pytest-cov==4.1.0
-httpx==0.26.0
+httpx==0.28.1
 fakeredis>=2.21.0  # Redis mocking for tests (Issue #8)
 
 # Code Quality
 black==24.1.1
-ruff==0.2.1
-mypy==1.8.0
+ruff==0.14.10
+mypy==1.19.1
 pre-commit==4.5.1
