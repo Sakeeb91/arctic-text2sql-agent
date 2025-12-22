@@ -30,6 +30,8 @@ from app.exceptions import (
     UnsupportedQueryTypeException,
 )
 from app.logging_config import get_logger
+from app.monitoring.metrics import get_metrics_registry
+from app.monitoring.tracing import get_tracing_manager
 
 logger = get_logger(__name__)
 
@@ -167,6 +169,8 @@ class SafeQueryExecutor:
         allow_mutations: bool = False,
         timeout_seconds: int = 30,
         max_rows: int = 1000,
+        database_id: str = "default",
+        dialect: str = "unknown",
     ) -> None:
         """
         Initialize query executor.
@@ -181,6 +185,10 @@ class SafeQueryExecutor:
         self._validator = QueryValidator(allow_mutations=allow_mutations)
         self._timeout_seconds = timeout_seconds
         self._max_rows = max_rows
+        self._database_id = database_id
+        self._dialect = dialect
+        self._metrics = get_metrics_registry()
+        self._tracing = get_tracing_manager()
 
     async def execute(
         self,
@@ -208,10 +216,15 @@ class SafeQueryExecutor:
 
         start_time = time.perf_counter()
         timeout = timeout or self._timeout_seconds
+        query_type = self._extract_query_type(sql)
 
         # Validate query
         validation_errors = self._validator.validate(sql)
         if validation_errors:
+            self._metrics.record_sql_validation(
+                database_id=self._database_id,
+                valid=False,
+            )
             raise QueryExecutionException(
                 message=f"Query validation failed: {', '.join(validation_errors)}",
                 sql=sql,
@@ -220,11 +233,20 @@ class SafeQueryExecutor:
 
         # Check if mutation is attempted without permission
         if not self._validator.is_select_only(sql):
+            self._metrics.record_sql_validation(
+                database_id=self._database_id,
+                valid=False,
+            )
             raise UnsupportedQueryTypeException(
                 query_type="mutation",
                 supported_types=["SELECT", "WITH"],
                 details={"message": "Only SELECT queries are allowed"},
             )
+
+        self._metrics.record_sql_validation(
+            database_id=self._database_id,
+            valid=True,
+        )
 
         logger.debug(
             "executing_query",
@@ -234,12 +256,31 @@ class SafeQueryExecutor:
 
         try:
             # Execute with timeout
-            result: QueryResult = await asyncio.wait_for(
-                self._execute_query(sql, params),
-                timeout=timeout,
-            )
+            with self._tracing.create_span(
+                f"db.{query_type.lower()}",
+                attributes={
+                    "db.system": self._dialect,
+                    "db.operation": query_type,
+                    "db.database_id": self._database_id,
+                },
+                kind="client",
+            ):
+                result: QueryResult = await asyncio.wait_for(
+                    self._execute_query(sql, params),
+                    timeout=timeout,
+                )
+                self._tracing.set_span_attribute(
+                    "db.rows_returned", result.row_count
+                )
 
             execution_time_ms = (time.perf_counter() - start_time) * 1000
+            self._metrics.record_sql_query(
+                database_id=self._database_id,
+                query_type=query_type,
+                status="success",
+                duration_seconds=execution_time_ms / 1000,
+                rows_returned=result.row_count,
+            )
 
             logger.info(
                 "query_executed",
@@ -256,6 +297,12 @@ class SafeQueryExecutor:
                 timeout_seconds=timeout,
                 sql_preview=sql[:100],
             )
+            self._metrics.record_sql_query(
+                database_id=self._database_id,
+                query_type=query_type,
+                status="timeout",
+                duration_seconds=(time.perf_counter() - start_time),
+            )
             raise QueryTimeoutException(
                 timeout_seconds=timeout,
                 details={"sql_preview": sql[:100]},
@@ -263,6 +310,12 @@ class SafeQueryExecutor:
 
         except Exception as e:
             execution_time_ms = (time.perf_counter() - start_time) * 1000
+            self._metrics.record_sql_query(
+                database_id=self._database_id,
+                query_type=query_type,
+                status="error",
+                duration_seconds=execution_time_ms / 1000,
+            )
             logger.error(
                 "query_execution_error",
                 error=str(e),
@@ -314,6 +367,28 @@ class SafeQueryExecutor:
             columns=columns,
             warnings=warnings,
         )
+
+    @staticmethod
+    def _extract_query_type(sql: str) -> str:
+        statement = sql.strip().upper()
+
+        if statement.startswith("SELECT"):
+            return "SELECT"
+        if statement.startswith("WITH"):
+            return "SELECT"
+        if statement.startswith("INSERT"):
+            return "INSERT"
+        if statement.startswith("UPDATE"):
+            return "UPDATE"
+        if statement.startswith("DELETE"):
+            return "DELETE"
+        if statement.startswith("CREATE"):
+            return "CREATE"
+        if statement.startswith("ALTER"):
+            return "ALTER"
+        if statement.startswith("DROP"):
+            return "DROP"
+        return "OTHER"
 
     async def execute_explain(self, sql: str) -> dict[str, Any]:
         """
