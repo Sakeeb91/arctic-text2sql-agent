@@ -12,7 +12,7 @@ This module provides:
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -70,6 +70,17 @@ class StreamEvent:
     def to_json(self) -> str:
         """Convert to JSON string."""
         return json.dumps(self.to_dict())
+
+
+def _iter_result_batches(
+    rows: list[dict[str, Any]],
+    batch_size: int,
+) -> Iterator[tuple[int, int, list[dict[str, Any]]]]:
+    """Yield batches of rows with start/end offsets."""
+    total_rows = len(rows)
+    for batch_start in range(0, total_rows, batch_size):
+        batch_end = min(batch_start + batch_size, total_rows)
+        yield batch_start, batch_end, rows[batch_start:batch_end]
 
 
 class QueryStreamer:
