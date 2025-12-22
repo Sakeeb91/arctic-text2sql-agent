@@ -177,6 +177,8 @@ class CacheManager:
             # Test connection
             await self._redis.ping()
             self._connected = True
+            if self._metrics_enabled:
+                self._metrics.set_redis_connected(True)
 
             logger.info("cache_redis_connected", url=redis_url.split("@")[-1])
             return True
@@ -189,6 +191,8 @@ class CacheManager:
         except Exception as e:
             logger.warning("cache_redis_connection_failed", error=str(e))
             self._connected = False
+            if self._metrics_enabled:
+                self._metrics.set_redis_connected(False)
             return False
 
     async def disconnect(self) -> None:
@@ -201,6 +205,8 @@ class CacheManager:
             finally:
                 self._redis = None
                 self._connected = False
+                if self._metrics_enabled:
+                    self._metrics.set_redis_connected(False)
 
     @property
     def is_connected(self) -> bool:
