@@ -1020,7 +1020,7 @@ class CacheInvalidateRequest(BaseModel):
 
     namespace: str | None = Field(
         None,
-        description="Cache namespace to invalidate (query, model, schema). None for all.",
+        description="Cache namespace to invalidate (query, model, prompt, schema, inference, validation). None for all.",
     )
     key: str | None = Field(
         None, description="Specific key to invalidate. None for entire namespace."
