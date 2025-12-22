@@ -372,7 +372,8 @@ class TestRetryFunctionality:
                     max_steps=5,
                     min_confidence=0.7,
                     verbosity=1,
-                )
+                ),
+                cache=MagicMock(enabled=False),
             )
 
             engine = AgentText2SQL(mock_db_manager)
