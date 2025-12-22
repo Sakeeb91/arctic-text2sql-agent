@@ -4,7 +4,7 @@
 # Testing
 pytest==7.4.4
 pytest-asyncio==0.23.4
-pytest-cov==4.1.0
+pytest-cov==7.0.0
 httpx==0.28.1
 fakeredis>=2.21.0
 
