@@ -4,7 +4,7 @@
 # Keep in sync with requirements.txt.
 #
 cryptography>=39.0.0
-numpy<2
+numpy<3
 smolagents>=1.0.0,<2.0.0
 coverage>=7.4.0
 huggingface_hub>=0.31.2

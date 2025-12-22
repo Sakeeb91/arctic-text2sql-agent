@@ -6,7 +6,7 @@
 # This reduces PyTorch from ~1.8GB to ~150MB
 
 # Core ML
-numpy<2  # Required for torch compatibility
+numpy<3  # Required for torch compatibility
 
 # PyTorch (largest dependency)
 torch>=2.2.0

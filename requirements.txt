@@ -62,7 +62,7 @@ slowapi==0.1.9
 # ============================================================================
 
 # Core ML
-numpy<2  # Required for torch compatibility
+numpy<3  # Required for torch compatibility
 
 # PyTorch - NOTE: ~1.8GB download
 # For CPU-only: pip install torch --index-url https://download.pytorch.org/whl/cpu
