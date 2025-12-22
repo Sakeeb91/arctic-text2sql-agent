@@ -269,9 +269,7 @@ class SafeQueryExecutor:
                     self._execute_query(sql, params),
                     timeout=timeout,
                 )
-                self._tracing.set_span_attribute(
-                    "db.rows_returned", result.row_count
-                )
+                self._tracing.set_span_attribute("db.rows_returned", result.row_count)
 
             execution_time_ms = (time.perf_counter() - start_time) * 1000
             self._metrics.record_sql_query(

@@ -392,7 +392,9 @@ class TestSQLValidator:
         )
 
         assert any("limit" in warning.lower() for warning in feedback.warnings)
-        assert any("limit 5" in suggestion.lower() for suggestion in feedback.suggestions)
+        assert any(
+            "limit 5" in suggestion.lower() for suggestion in feedback.suggestions
+        )
 
 
 # =============================================================================

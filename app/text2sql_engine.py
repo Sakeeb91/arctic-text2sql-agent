@@ -358,14 +358,18 @@ class SQLValidator:
         syntax_valid, syntax_errors = self._check_syntax(sql)
         if not syntax_valid:
             errors.extend(syntax_errors)
-            self._record_validation_metrics(database_id, ValidationStatus.INVALID_SYNTAX)
+            self._record_validation_metrics(
+                database_id, ValidationStatus.INVALID_SYNTAX
+            )
             return ValidationStatus.INVALID_SYNTAX, errors
 
         # Security check
         is_safe, security_errors = self._check_security(sql)
         if not is_safe:
             errors.extend(security_errors)
-            self._record_validation_metrics(database_id, ValidationStatus.DANGEROUS_QUERY)
+            self._record_validation_metrics(
+                database_id, ValidationStatus.DANGEROUS_QUERY
+            )
             return ValidationStatus.DANGEROUS_QUERY, errors
 
         # Schema alignment check
@@ -392,7 +396,9 @@ class SQLValidator:
             valid=status == ValidationStatus.VALID,
         )
         if status == ValidationStatus.INVALID_SYNTAX:
-            metrics.record_sql_syntax_error(database_id=database_id, error_type="syntax")
+            metrics.record_sql_syntax_error(
+                database_id=database_id, error_type="syntax"
+            )
 
     def _check_syntax(self, sql: str) -> tuple[bool, list[str]]:
         """Check basic SQL syntax."""
@@ -801,11 +807,7 @@ class Text2SQLEngine:
                 if show_reasoning:
                     reasoning_trace[-1].observation = "SQL validation passed"
 
-        if (
-            self._enable_validation
-            and valid_syntax
-            and inference_result.sql
-        ):
+        if self._enable_validation and valid_syntax and inference_result.sql:
             semantic_feedback = self._validator.check_semantics(
                 natural_query=natural_query,
                 sql=inference_result.sql,
@@ -1066,10 +1068,9 @@ class Text2SQLEngine:
             "use_default_examples": use_default_examples,
         }
 
-        return (
-            hashlib.sha256(json.dumps(key_data, sort_keys=True).encode())
-            .hexdigest()[:32]
-        )
+        return hashlib.sha256(
+            json.dumps(key_data, sort_keys=True).encode()
+        ).hexdigest()[:32]
 
     async def _generate_with_retry(
         self,

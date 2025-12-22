@@ -302,9 +302,7 @@ class CacheManager:
             self._stats.misses += 1
             elapsed = (time.perf_counter() - start_time) * 1000
             self._update_miss_time(elapsed)
-            self._record_cache_operation(
-                namespace.value, "get", "miss", elapsed / 1000
-            )
+            self._record_cache_operation(namespace.value, "get", "miss", elapsed / 1000)
             logger.debug("cache_miss", key=key, namespace=namespace.value)
             return None
 
@@ -362,9 +360,7 @@ class CacheManager:
                     namespace=namespace.value,
                     ttl=effective_ttl,
                 )
-                self._record_cache_operation(
-                    namespace.value, "set", "success", 0.0
-                )
+                self._record_cache_operation(namespace.value, "set", "success", 0.0)
                 return True
 
             # Fall back to in-memory cache

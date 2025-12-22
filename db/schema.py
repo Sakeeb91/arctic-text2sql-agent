@@ -112,12 +112,9 @@ class TableInfo:
         """Create from dictionary."""
         return cls(
             name=data.get("name", ""),
-            columns=[
-                ColumnInfo.from_dict(item) for item in data.get("columns", [])
-            ],
+            columns=[ColumnInfo.from_dict(item) for item in data.get("columns", [])],
             foreign_keys=[
-                ForeignKeyInfo.from_dict(item)
-                for item in data.get("foreign_keys", [])
+                ForeignKeyInfo.from_dict(item) for item in data.get("foreign_keys", [])
             ],
             primary_keys=list(data.get("primary_keys", [])),
             row_count=data.get("row_count"),
