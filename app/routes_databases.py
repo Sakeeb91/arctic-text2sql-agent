@@ -7,7 +7,7 @@ connections in the registry.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import get_settings
@@ -256,6 +256,7 @@ def _health_to_response(health: DatabaseHealth) -> DatabaseHealthResponse:
 @limiter.limit("10/minute")
 async def register_database(
     request: Request,
+    response: Response,
     register_request: DatabaseRegisterRequest,
 ) -> DatabaseResponse:
     """
@@ -332,6 +333,7 @@ async def register_database(
 @limiter.limit("30/minute")
 async def list_databases(
     request: Request,
+    response: Response,
     dialect: str | None = None,
     tag: str | None = None,
     healthy_only: bool = False,
@@ -393,6 +395,7 @@ async def list_databases(
 @limiter.limit("30/minute")
 async def get_database(
     request: Request,
+    response: Response,
     database_id: str,
 ) -> DatabaseResponse:
     """
@@ -415,6 +418,7 @@ async def get_database(
 @limiter.limit("60/minute")
 async def check_database_health(
     request: Request,
+    response: Response,
     database_id: str,
 ) -> DatabaseHealthResponse:
     """
@@ -439,6 +443,7 @@ async def check_database_health(
 @limiter.limit("10/minute")
 async def check_all_database_health(
     request: Request,
+    response: Response,
 ) -> HealthCheckAllResponse:
     """
     Perform health check on all registered databases.
@@ -480,6 +485,7 @@ async def check_all_database_health(
 @limiter.limit("10/minute")
 async def unregister_database(
     request: Request,
+    response: Response,
     database_id: str,
 ) -> DatabaseDeleteResponse:
     """
@@ -520,6 +526,7 @@ async def unregister_database(
 @limiter.limit("20/minute")
 async def test_database_connection(
     request: Request,
+    response: Response,
     database_id: str,
 ) -> DatabaseHealthResponse:
     """
