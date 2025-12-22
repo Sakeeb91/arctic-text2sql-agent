@@ -334,6 +334,59 @@ class TestQueryStreamerExecution:
         assert engine.execute_calls == 0
         assert any(event.event_type == StreamEventType.QUERY_COMPLETE for event in events)
 
+    @pytest.mark.asyncio
+    async def test_stream_query_forwards_max_rows(self, monkeypatch) -> None:
+        """Test stream_query forwards max_rows to execution."""
+        from db.executor import QueryResult
+
+        streamer = QueryStreamer()
+
+        settings = SimpleNamespace(
+            agent=SimpleNamespace(enabled=False, use_legacy_fallback=False)
+        )
+        monkeypatch.setattr("app.streaming.get_settings", lambda: settings)
+
+        class StubEngine:
+            def __init__(self) -> None:
+                self.max_rows = None
+
+            async def generate_sql(self, **kwargs) -> SimpleNamespace:
+                return SimpleNamespace(
+                    sql="SELECT 1",
+                    confidence=0.9,
+                    reasoning_trace=[],
+                )
+
+            async def execute_sql(self, **kwargs) -> QueryResult:
+                self.max_rows = kwargs.get("max_rows")
+                return QueryResult(
+                    success=True,
+                    sql="SELECT 1",
+                    rows=[],
+                    row_count=0,
+                )
+
+        engine = StubEngine()
+
+        async def fake_get_engine() -> StubEngine:
+            return engine
+
+        monkeypatch.setattr(
+            "app.text2sql_engine.get_text2sql_engine",
+            fake_get_engine,
+        )
+
+        await collect_events(
+            streamer.stream_query(
+                natural_query="Show users",
+                database_id="db1",
+                execute=True,
+                max_rows=42,
+            )
+        )
+
+        assert engine.max_rows == 42
+
 
 class TestStreamResults:
     """Tests for stream_results function."""
