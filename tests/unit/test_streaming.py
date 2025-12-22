@@ -20,6 +20,11 @@ from app.streaming import (
 )
 
 
+async def collect_events(generator) -> list[StreamEvent]:
+    """Collect all events from an async generator."""
+    return [event async for event in generator]
+
+
 class TestStreamEventType:
     """Tests for StreamEventType enum."""
 
