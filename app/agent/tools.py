@@ -51,6 +51,7 @@ def create_sql_executor_tool(
     execution_timeout: int = 30,
     allow_mutations: bool = False,
     database_id: str | None = None,
+    dialect: str = "unknown",
 ) -> Any:
     """
     Create a SQL executor tool with embedded schema description.
@@ -65,6 +66,7 @@ def create_sql_executor_tool(
         execution_timeout: Query execution timeout in seconds
         allow_mutations: Whether to allow mutation queries
         database_id: Database identifier for logging/tracing
+        dialect: Database dialect for tracing metadata
 
     Returns:
         A tool function for SQL execution
@@ -104,6 +106,8 @@ def create_sql_executor_tool(
                         allow_mutations=allow_mutations,
                         timeout_seconds=execution_timeout,
                         max_rows=max_rows,
+                        database_id=database_id or "default",
+                        dialect=dialect,
                     )
 
                     result = await executor.execute(query)

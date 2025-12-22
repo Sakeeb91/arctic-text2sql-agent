@@ -29,6 +29,7 @@ def build_agent_tools(
             execution_timeout=settings.agent.execution_timeout,
             allow_mutations=settings.multi_database.allow_mutations,
             database_id=db_context.database_id,
+            dialect=db_context.dialect,
         ),
         create_schema_inspector_tool(
             engine=db_context.engine,
