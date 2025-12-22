@@ -5,6 +5,7 @@ This module provides fixtures for end-to-end testing with real
 model inference and database execution.
 """
 
+import asyncio
 import os
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -22,6 +23,24 @@ from db.dialects import SQLDialect
 from db.registry import DatabaseConfig, DatabaseRegistry, reset_database_registry
 from db.schema import ColumnInfo, SchemaInfo, TableInfo
 from tests.e2e.seed_data import E2E_TEST_DATA, seed_database
+
+
+# =============================================================================
+# Event Loop Fixture for Module-Scoped Async Fixtures
+# =============================================================================
+
+
+@pytest.fixture(scope="module")
+def event_loop() -> asyncio.AbstractEventLoop:
+    """
+    Create an event loop for module-scoped async fixtures.
+
+    pytest-asyncio requires an event_loop fixture with the same scope
+    as any async fixtures that need it.
+    """
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 # =============================================================================
 # Environment Configuration
