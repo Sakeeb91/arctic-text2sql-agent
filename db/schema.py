@@ -5,6 +5,7 @@ This module provides functionality to extract and serialize
 database schema information for use in SQL generation prompts.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -181,14 +182,24 @@ class SchemaIntrospector:
         prompt_text = introspector.serialize_for_prompt(schema)
     """
 
-    def __init__(self, engine: AsyncEngine) -> None:
+    def __init__(
+        self,
+        engine: AsyncEngine | None = None,
+        engine_provider: Callable[[str], AsyncEngine] | None = None,
+    ) -> None:
         """
         Initialize schema introspector.
 
         Args:
             engine: SQLAlchemy async engine
+            engine_provider: Callable that resolves an engine per database ID
         """
+        if engine is None and engine_provider is None:
+            raise ValueError(
+                "SchemaIntrospector requires an engine or engine_provider."
+            )
         self._engine = engine
+        self._engine_provider = engine_provider
         self._cache: dict[str, SchemaInfo] = {}
 
     async def get_schema(
@@ -214,9 +225,19 @@ class SchemaIntrospector:
         logger.info("introspecting_schema", database_id=database_id)
 
         try:
-            async with self._engine.connect() as conn:
+            engine = (
+                self._engine_provider(database_id)
+                if self._engine_provider
+                else self._engine
+            )
+            if engine is None:
+                raise ValueError("SchemaIntrospector engine is not configured.")
+            async with engine.connect() as conn:
                 schema = await self._extract_schema(
-                    conn, database_id, include_row_counts
+                    conn,
+                    database_id,
+                    include_row_counts,
+                    engine.dialect.name,
                 )
                 self._cache[database_id] = schema
                 return schema
@@ -237,6 +258,7 @@ class SchemaIntrospector:
         conn: AsyncConnection,
         database_id: str,
         include_row_counts: bool,
+        dialect_name: str,
     ) -> SchemaInfo:
         """Extract schema from database connection."""
 
@@ -319,12 +341,9 @@ class SchemaIntrospector:
                         error=str(e),
                     )
 
-        # Get dialect
-        dialect = self._engine.dialect.name
-
         return SchemaInfo(
             database_id=database_id,
-            dialect=dialect,
+            dialect=dialect_name,
             tables=tables,
         )
 

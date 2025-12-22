@@ -36,6 +36,7 @@ from db.dialects import (
     convert_url_to_async,
     get_dialect_adapter,
 )
+from db.schema import SchemaInfo
 
 logger = get_logger(__name__)
 
@@ -160,14 +161,23 @@ class RegisteredDatabase:
     session_factory: async_sessionmaker[AsyncSession]
     adapter: DialectAdapter
     health: DatabaseHealth
+    schema: SchemaInfo | None = None
+    schema_updated_at: datetime | None = None
     registered_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
+        schema_metadata = None
+        if self.schema:
+            schema_metadata = {
+                "table_count": len(self.schema.tables),
+                "last_updated": self.schema.last_updated.isoformat(),
+            }
         return {
             **self.config.to_dict(),
             "registered_at": self.registered_at.isoformat(),
             "health": self.health.to_dict(),
+            "schema": schema_metadata,
         }
 
 
@@ -399,6 +409,18 @@ class DatabaseRegistry:
             DatabaseNotRegisteredException: If database not found
         """
         return self.get_database(database_id).adapter
+
+    def update_schema(self, database_id: str, schema: SchemaInfo) -> None:
+        """
+        Store schema metadata for a registered database.
+
+        Args:
+            database_id: Database identifier
+            schema: Extracted schema information
+        """
+        registered = self.get_database(database_id)
+        registered.schema = schema
+        registered.schema_updated_at = schema.last_updated
 
     @asynccontextmanager
     async def session(self, database_id: str) -> AsyncGenerator[AsyncSession, None]:

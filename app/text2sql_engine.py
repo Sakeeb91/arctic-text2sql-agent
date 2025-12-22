@@ -18,6 +18,7 @@ import hashlib
 import json
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -44,6 +45,7 @@ from app.monitoring.tracing import get_tracing_manager
 from app.resilience import CircuitBreaker, CircuitBreakerConfig, compute_backoff_seconds
 from db.connection import DatabaseManager
 from db.executor import QueryResult
+from db.registry import get_database_registry
 from db.schema import SchemaInfo, SchemaIntrospector
 
 logger = get_logger(__name__)
@@ -101,6 +103,16 @@ class SchemaContext:
             "table_names": self.table_names,
             "table_count": len(self.table_names),
         }
+
+
+@dataclass(frozen=True)
+class DatabaseContext:
+    """Resolved database resources for a database id."""
+
+    database_id: str
+    engine: Any
+    dialect: str
+    session_provider: Callable[[], Any]
 
 
 @dataclass
@@ -927,6 +939,7 @@ class Text2SQLEngine:
     async def _get_schema_context(self, database_id: str) -> SchemaContext:
         """Get or create schema context for database."""
         start_time = time.perf_counter()
+        db_context = await self._resolve_database_context(database_id)
         # Check cache
         if database_id in self._schema_cache:
             return self._schema_cache[database_id]
@@ -940,7 +953,7 @@ class Text2SQLEngine:
                 )
                 serialized = cached_payload.get("serialized_schema")
                 if not serialized:
-                    introspector = SchemaIntrospector(self._db_manager.engine)
+                    introspector = SchemaIntrospector(db_context.engine)
                     serialized = introspector.serialize_for_prompt(schema_info)
                 table_names = cached_payload.get("table_names") or [
                     table.name for table in schema_info.tables
@@ -962,7 +975,7 @@ class Text2SQLEngine:
                 return context
 
         # Create introspector and get schema
-        introspector = SchemaIntrospector(self._db_manager.engine)
+        introspector = SchemaIntrospector(db_context.engine)
         with self._tracing.create_span(
             "schema.introspect",
             attributes={"db.database_id": database_id},
@@ -1003,6 +1016,35 @@ class Text2SQLEngine:
         # Cache and return
         self._schema_cache[database_id] = context
         return context
+
+    async def _resolve_database_context(
+        self,
+        database_id: str | None,
+    ) -> DatabaseContext:
+        resolved_id = database_id or "default"
+        settings = get_settings()
+
+        if settings.multi_database.enabled:
+            registry = await get_database_registry()
+            registered = registry.get_database(resolved_id)
+            dialect = (
+                registered.config.dialect.value
+                if registered.config.dialect is not None
+                else registered.engine.dialect.name
+            )
+            return DatabaseContext(
+                database_id=resolved_id,
+                engine=registered.engine,
+                dialect=dialect,
+                session_provider=lambda: registry.session(resolved_id),
+            )
+
+        return DatabaseContext(
+            database_id=resolved_id,
+            engine=self._db_manager.engine,
+            dialect=self._db_manager.dialect,
+            session_provider=self._db_manager.session,
+        )
 
     async def _get_few_shot_examples(
         self,
@@ -1295,20 +1337,21 @@ class Text2SQLEngine:
         """
         from db.executor import SafeQueryExecutor
 
-        async with self._db_manager.session() as session:
+        db_context = await self._resolve_database_context(database_id)
+        async with db_context.session_provider() as session:
             executor = SafeQueryExecutor(
                 session=session,
                 allow_mutations=False,
                 max_rows=max_rows,
-                database_id=database_id or "default",
-                dialect=self._db_manager.dialect,
+                database_id=db_context.database_id,
+                dialect=db_context.dialect,
             )
 
             result: QueryResult = await executor.execute(sql)
 
         logger.info(
             "text2sql_execute_sql",
-            database_id=database_id or "default",
+            database_id=db_context.database_id,
             row_count=result.row_count,
         )
 

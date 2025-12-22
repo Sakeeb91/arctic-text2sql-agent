@@ -473,8 +473,17 @@ async def get_schema(
     try:
         from db.schema import SchemaIntrospector
 
-        db_manager = await get_database()
-        introspector = SchemaIntrospector(db_manager.engine)
+        settings = get_settings()
+        if settings.multi_database.enabled:
+            from db.registry import get_database_registry
+
+            registry = await get_database_registry()
+            introspector = SchemaIntrospector(
+                engine_provider=registry.get_engine,
+            )
+        else:
+            db_manager = await get_database()
+            introspector = SchemaIntrospector(db_manager.engine)
         schema = await introspector.get_schema(database_id)
 
         return SchemaResponse(
@@ -502,7 +511,7 @@ async def register_schema(
     request: Request,
     response: Response,
     schema_request: SchemaRequest,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """
     Register a new database schema.
 
@@ -530,8 +539,96 @@ async def register_schema(
         dialect=schema_request.dialect,
     )
 
-    # TODO: Implement actual registration
-    return {"status": "registered", "database_id": schema_request.database_id}
+    settings = get_settings()
+
+    try:
+        from app.cache import cache_schema
+        from db.schema import SchemaIntrospector
+
+        registry = None
+
+        if settings.multi_database.enabled:
+            from db.dialects import SQLDialect
+            from db.registry import DatabaseConfig, get_database_registry
+
+            registry = await get_database_registry()
+            if registry.database_count >= settings.multi_database.max_databases:
+                raise ValidationException(
+                    message=(
+                        "Maximum database limit reached "
+                        f"({settings.multi_database.max_databases})"
+                    ),
+                    validation_errors=[
+                        {"field": "database_id", "error": "Registry is full"}
+                    ],
+                )
+
+            dialect: SQLDialect | None = None
+            if schema_request.dialect:
+                try:
+                    dialect = SQLDialect(schema_request.dialect.lower())
+                except ValueError:
+                    raise ValidationException(
+                        message=f"Invalid dialect: {schema_request.dialect}",
+                        validation_errors=[
+                            {
+                                "field": "dialect",
+                                "error": (
+                                    "Supported: "
+                                    f"{SQLDialect.supported_dialects()}"
+                                ),
+                            }
+                        ],
+                    ) from None
+
+            config = DatabaseConfig(
+                database_id=schema_request.database_id,
+                connection_string=schema_request.connection_string,
+                dialect=dialect,
+                pool_size=settings.multi_database.default_pool_size,
+                max_overflow=settings.multi_database.default_max_overflow,
+                pool_timeout=settings.multi_database.default_pool_timeout,
+                read_only=not settings.multi_database.allow_mutations,
+            )
+
+            registered = await registry.register_database(
+                config,
+                test_connection=settings.multi_database.require_connection_test,
+            )
+            introspector = SchemaIntrospector(registered.engine)
+        else:
+            db_manager = await get_database()
+            introspector = SchemaIntrospector(db_manager.engine)
+
+        schema = await introspector.get_schema(schema_request.database_id)
+        serialized = introspector.serialize_for_prompt(schema)
+        if registry is not None:
+            registry.update_schema(schema_request.database_id, schema)
+
+        if settings.cache.enabled:
+            await cache_schema(
+                schema_request.database_id,
+                {
+                    "schema_info": schema.to_dict(),
+                    "serialized_schema": serialized,
+                    "table_names": [table.name for table in schema.tables],
+                    "dialect": schema.dialect,
+                },
+            )
+
+        return {
+            "status": "registered",
+            "database_id": schema_request.database_id,
+            "table_count": len(schema.tables),
+            "dialect": schema.dialect,
+        }
+    except Exception as e:
+        logger.error(
+            "register_schema_error",
+            database_id=schema_request.database_id,
+            error=str(e),
+        )
+        raise
 
 
 # =============================================================================
