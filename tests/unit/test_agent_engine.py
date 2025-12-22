@@ -419,7 +419,8 @@ class TestGlobalEngineManagement:
                         max_steps=5,
                         min_confidence=0.7,
                         verbosity=1,
-                    )
+                    ),
+                    cache=MagicMock(enabled=False),
                 )
 
                 engine = await get_agent_engine()
