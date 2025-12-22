@@ -14,6 +14,8 @@ natural language questions into SQL queries.
 """
 
 import asyncio
+import hashlib
+import json
 import re
 import time
 from dataclasses import dataclass, field
@@ -22,6 +24,13 @@ from enum import Enum
 from typing import Any
 
 from app.config import FewShotSettings, get_settings
+from app.cache import (
+    cache_prompt,
+    cache_schema,
+    generate_prompt_hash,
+    get_cached_prompt,
+    get_cached_schema,
+)
 from app.exceptions import (
     AgentMaxStepsExceededException,
     CircuitBreakerOpenException,
@@ -29,6 +38,9 @@ from app.exceptions import (
     SchemaNotFoundException,
 )
 from app.logging_config import get_logger
+from app.monitoring.metrics import get_metrics_registry
+from app.monitoring.model_instrumentation import ModelInstrumentor
+from app.monitoring.tracing import get_tracing_manager
 from app.resilience import CircuitBreaker, CircuitBreakerConfig, compute_backoff_seconds
 from db.connection import DatabaseManager
 from db.executor import QueryResult
@@ -260,6 +272,21 @@ def classify_query_intent(natural_query: str) -> QueryIntent:
 # =============================================================================
 
 
+@dataclass
+class SemanticValidationFeedback:
+    """Semantic validation warnings and suggestions."""
+
+    warnings: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "warnings": self.warnings,
+            "suggestions": self.suggestions,
+        }
+
+
 class SQLValidator:
     """
     Validates SQL queries for syntax and schema alignment.
@@ -325,16 +352,20 @@ class SQLValidator:
         """
         errors: list[str] = []
 
+        database_id = schema_context.database_id if schema_context else "unknown"
+
         # Basic syntax check
         syntax_valid, syntax_errors = self._check_syntax(sql)
         if not syntax_valid:
             errors.extend(syntax_errors)
+            self._record_validation_metrics(database_id, ValidationStatus.INVALID_SYNTAX)
             return ValidationStatus.INVALID_SYNTAX, errors
 
         # Security check
         is_safe, security_errors = self._check_security(sql)
         if not is_safe:
             errors.extend(security_errors)
+            self._record_validation_metrics(database_id, ValidationStatus.DANGEROUS_QUERY)
             return ValidationStatus.DANGEROUS_QUERY, errors
 
         # Schema alignment check
@@ -344,9 +375,24 @@ class SQLValidator:
             )
             if not aligned:
                 errors.extend(alignment_errors)
+                self._record_validation_metrics(
+                    database_id, ValidationStatus.SCHEMA_MISMATCH
+                )
                 return ValidationStatus.SCHEMA_MISMATCH, errors
 
+        self._record_validation_metrics(database_id, ValidationStatus.VALID)
         return ValidationStatus.VALID, []
+
+    def _record_validation_metrics(
+        self, database_id: str, status: ValidationStatus
+    ) -> None:
+        metrics = get_metrics_registry()
+        metrics.record_sql_validation(
+            database_id=database_id,
+            valid=status == ValidationStatus.VALID,
+        )
+        if status == ValidationStatus.INVALID_SYNTAX:
+            metrics.record_sql_syntax_error(database_id=database_id, error_type="syntax")
 
     def _check_syntax(self, sql: str) -> tuple[bool, list[str]]:
         """Check basic SQL syntax."""
@@ -416,6 +462,65 @@ class SQLValidator:
 
         return len(errors) == 0, errors
 
+    def check_semantics(
+        self,
+        natural_query: str,
+        sql: str,
+        intent: QueryIntent,
+    ) -> SemanticValidationFeedback:
+        """
+        Perform semantic checks between natural query intent and SQL structure.
+
+        Returns warnings and suggestions without failing validation.
+        """
+        feedback = SemanticValidationFeedback()
+        sql_upper = sql.upper()
+        query_lower = natural_query.lower()
+
+        if intent == QueryIntent.AGGREGATE and not self._has_aggregation(sql_upper):
+            feedback.warnings.append(
+                "Query intent suggests aggregation, but SQL lacks aggregate functions."
+            )
+            feedback.suggestions.append(
+                "Consider using COUNT, SUM, AVG, MIN, MAX, or GROUP BY."
+            )
+
+        if intent == QueryIntent.JOIN and not self._has_join(sql_upper):
+            feedback.warnings.append(
+                "Query intent suggests a join, but SQL does not include JOINs."
+            )
+            feedback.suggestions.append(
+                "Add JOIN clauses between related tables to match the request."
+            )
+
+        if intent == QueryIntent.SUBQUERY and not self._has_order_by(sql_upper):
+            feedback.warnings.append(
+                "Superlative query may require ordering to find top/bottom results."
+            )
+            feedback.suggestions.append(
+                "Add ORDER BY with DESC/ASC and LIMIT for top/bottom queries."
+            )
+
+        top_match = re.search(r"\btop\s+(\d+)\b", query_lower)
+        if top_match and not self._has_limit(sql_upper):
+            feedback.warnings.append(
+                "Natural language request includes a top-N filter without LIMIT."
+            )
+            feedback.suggestions.append(
+                f"Add LIMIT {top_match.group(1)} to restrict results."
+            )
+
+        if re.search(r"\b(most|highest|lowest|least)\b", query_lower):
+            if not self._has_order_by(sql_upper):
+                feedback.warnings.append(
+                    "Ranking intent detected without ORDER BY in SQL."
+                )
+                feedback.suggestions.append(
+                    "Use ORDER BY to rank results and LIMIT 1 for the best match."
+                )
+
+        return feedback
+
     def _extract_table_names(self, sql: str) -> list[str]:
         """Extract table names from SQL query."""
         tables: list[str] = []
@@ -437,6 +542,25 @@ class SQLValidator:
         tables.extend(join_matches)
 
         return list(set(tables))
+
+    @staticmethod
+    def _has_aggregation(sql_upper: str) -> bool:
+        aggregate_tokens = ["COUNT(", "SUM(", "AVG(", "MIN(", "MAX("]
+        return any(token in sql_upper for token in aggregate_tokens) or (
+            "GROUP BY" in sql_upper
+        )
+
+    @staticmethod
+    def _has_join(sql_upper: str) -> bool:
+        return " JOIN " in sql_upper or " JOIN\n" in sql_upper
+
+    @staticmethod
+    def _has_order_by(sql_upper: str) -> bool:
+        return "ORDER BY" in sql_upper
+
+    @staticmethod
+    def _has_limit(sql_upper: str) -> bool:
+        return "LIMIT" in sql_upper or "FETCH FIRST" in sql_upper
 
 
 # =============================================================================
@@ -511,6 +635,13 @@ class Text2SQLEngine:
 
         self._validator = SQLValidator(allow_mutations=False)
         self._schema_cache: dict[str, SchemaContext] = {}
+        self._cache_enabled = settings.cache.enabled
+        model_name = getattr(getattr(settings, "huggingface", None), "model_name", None)
+        self._instrumentor = ModelInstrumentor(
+            model_name=model_name or "arctic-text2sql"
+        )
+        self._metrics = get_metrics_registry()
+        self._tracing = get_tracing_manager()
 
         logger.info(
             "text2sql_engine_initialized",
@@ -642,6 +773,7 @@ class Text2SQLEngine:
         step_num += 1
         validation_status = ValidationStatus.NOT_VALIDATED
         valid_syntax = True
+        semantic_feedback: SemanticValidationFeedback | None = None
 
         if self._enable_validation:
             if show_reasoning:
@@ -668,6 +800,23 @@ class Text2SQLEngine:
             else:
                 if show_reasoning:
                     reasoning_trace[-1].observation = "SQL validation passed"
+
+        if (
+            self._enable_validation
+            and valid_syntax
+            and inference_result.sql
+        ):
+            semantic_feedback = self._validator.check_semantics(
+                natural_query=natural_query,
+                sql=inference_result.sql,
+                intent=intent,
+            )
+            if semantic_feedback.warnings:
+                warnings.extend(semantic_feedback.warnings)
+            if semantic_feedback.suggestions:
+                warnings.extend(
+                    [f"Suggestion: {item}" for item in semantic_feedback.suggestions]
+                )
 
         # Step 5: Check confidence threshold
         if inference_result.confidence < self._min_confidence:
@@ -735,6 +884,9 @@ class Text2SQLEngine:
                 "input_tokens": inference_result.input_tokens,
                 "output_tokens": inference_result.output_tokens,
                 "retries": inference_result.metadata.get("retries", 0),
+                "semantic_feedback": (
+                    semantic_feedback.to_dict() if semantic_feedback else None
+                ),
             },
         )
 
@@ -773,13 +925,49 @@ class Text2SQLEngine:
 
     async def _get_schema_context(self, database_id: str) -> SchemaContext:
         """Get or create schema context for database."""
+        start_time = time.perf_counter()
         # Check cache
         if database_id in self._schema_cache:
             return self._schema_cache[database_id]
 
+        if self._cache_enabled:
+            cached_payload = await get_cached_schema(database_id)
+            if isinstance(cached_payload, dict):
+                schema_payload = cached_payload.get("schema_info", cached_payload)
+                schema_info = SchemaInfo.from_dict(
+                    schema_payload, database_id=database_id
+                )
+                serialized = cached_payload.get("serialized_schema")
+                if not serialized:
+                    introspector = SchemaIntrospector(self._db_manager.engine)
+                    serialized = introspector.serialize_for_prompt(schema_info)
+                table_names = cached_payload.get("table_names") or [
+                    table.name for table in schema_info.tables
+                ]
+                context = SchemaContext(
+                    database_id=database_id,
+                    dialect=schema_info.dialect,
+                    schema_info=schema_info,
+                    serialized_schema=serialized,
+                    table_names=table_names,
+                )
+                self._schema_cache[database_id] = context
+                duration = time.perf_counter() - start_time
+                self._metrics.record_schema_introspection(
+                    database_id=database_id,
+                    status="cached",
+                    duration_seconds=duration,
+                )
+                return context
+
         # Create introspector and get schema
         introspector = SchemaIntrospector(self._db_manager.engine)
-        schema_info = await introspector.get_schema(database_id)
+        with self._tracing.create_span(
+            "schema.introspect",
+            attributes={"db.database_id": database_id},
+            kind="client",
+        ):
+            schema_info = await introspector.get_schema(database_id)
 
         # Serialize for prompt
         serialized = introspector.serialize_for_prompt(schema_info)
@@ -791,6 +979,24 @@ class Text2SQLEngine:
             schema_info=schema_info,
             serialized_schema=serialized,
             table_names=[table.name for table in schema_info.tables],
+        )
+
+        if self._cache_enabled:
+            await cache_schema(
+                database_id,
+                {
+                    "schema_info": schema_info.to_dict(),
+                    "serialized_schema": serialized,
+                    "table_names": context.table_names,
+                    "dialect": schema_info.dialect,
+                },
+            )
+
+        duration = time.perf_counter() - start_time
+        self._metrics.record_schema_introspection(
+            database_id=database_id,
+            status="success",
+            duration_seconds=duration,
         )
 
         # Cache and return
@@ -824,6 +1030,47 @@ class Text2SQLEngine:
             logger.warning("few_shot_retrieval_failed", error=str(e))
             return []
 
+    def _build_prompt_cache_key(
+        self,
+        natural_query: str,
+        schema_context: SchemaContext,
+        intent: QueryIntent,
+        attempt: int,
+        use_default_examples: bool,
+        few_shot_examples: list[Any],
+    ) -> str:
+        examples_payload = []
+        for example in few_shot_examples:
+            examples_payload.append(
+                {
+                    "question": getattr(example, "question", ""),
+                    "sql": getattr(example, "sql", ""),
+                    "explanation": getattr(example, "explanation", None),
+                }
+            )
+
+        examples_hash = "none"
+        if examples_payload:
+            examples_hash = hashlib.sha256(
+                json.dumps(examples_payload, sort_keys=True).encode()
+            ).hexdigest()[:16]
+
+        key_data = {
+            "query": natural_query.lower().strip(),
+            "database_id": schema_context.database_id,
+            "dialect": schema_context.dialect,
+            "intent": intent.value,
+            "attempt": attempt,
+            "schema_hash": generate_prompt_hash(schema_context.serialized_schema),
+            "examples_hash": examples_hash,
+            "use_default_examples": use_default_examples,
+        }
+
+        return (
+            hashlib.sha256(json.dumps(key_data, sort_keys=True).encode())
+            .hexdigest()[:32]
+        )
+
     async def _generate_with_retry(
         self,
         natural_query: str,
@@ -856,7 +1103,10 @@ class Text2SQLEngine:
             if not model_loader.is_loaded:
                 await model_loader.load()
 
-            inference_engine = InferenceEngine(model_loader)
+            inference_engine = InferenceEngine(
+                model_loader,
+                instrumentor=self._instrumentor,
+            )
             few_shot_examples = await self._get_few_shot_examples(
                 natural_query=natural_query,
                 database_id=schema_context.database_id,
@@ -865,20 +1115,51 @@ class Text2SQLEngine:
             use_default = (
                 use_examples or self._few_shot_settings.include_default_examples
             )
-            prompt = build_prompt(
-                question=natural_query,
-                schema=schema_context.serialized_schema,
-                template_type="arctic",
-                dialect=schema_context.dialect,
-                few_shot_examples=few_shot_examples,
+            prompt_cache_key = self._build_prompt_cache_key(
+                natural_query=natural_query,
+                schema_context=schema_context,
+                intent=intent,
+                attempt=attempt,
                 use_default_examples=use_default,
-                context=(
-                    f"Query intent: {intent.value}"
-                    if intent != QueryIntent.UNKNOWN
-                    else None
-                ),
+                few_shot_examples=few_shot_examples,
             )
-            return await inference_engine.generate(prompt, extract_sql=True)
+            prompt_cached = False
+            prompt = None
+
+            if self._cache_enabled:
+                prompt = await get_cached_prompt(prompt_cache_key)
+                prompt_cached = prompt is not None
+
+            if not prompt:
+                prompt = build_prompt(
+                    question=natural_query,
+                    schema=schema_context.serialized_schema,
+                    template_type="arctic",
+                    dialect=schema_context.dialect,
+                    few_shot_examples=few_shot_examples,
+                    use_default_examples=use_default,
+                    context=(
+                        f"Query intent: {intent.value}"
+                        if intent != QueryIntent.UNKNOWN
+                        else None
+                    ),
+                )
+                if self._cache_enabled:
+                    await cache_prompt(prompt_cache_key, prompt)
+
+            trace_attributes = {
+                "db.database_id": schema_context.database_id,
+                "query.intent": intent.value,
+                "query.attempt": attempt,
+                "prompt.cached": prompt_cached,
+                "prompt.examples_count": len(few_shot_examples),
+            }
+
+            return await inference_engine.generate(
+                prompt,
+                extract_sql=True,
+                trace_attributes=trace_attributes,
+            )
 
         if not self._circuit_breaker.can_attempt():
             warnings.append("Model inference temporarily unavailable (circuit open)")
@@ -1019,6 +1300,8 @@ class Text2SQLEngine:
                 session=session,
                 allow_mutations=False,
                 max_rows=max_rows,
+                database_id=database_id or "default",
+                dialect=self._db_manager.dialect,
             )
 
             result: QueryResult = await executor.execute(sql)
@@ -1065,6 +1348,15 @@ class Text2SQLEngine:
             self._schema_cache.pop(database_id, None)
         else:
             self._schema_cache.clear()
+
+        if self._cache_enabled:
+            try:
+                from app.cache import invalidate_schema_cache as invalidate_cache
+
+                loop = asyncio.get_running_loop()
+                loop.create_task(invalidate_cache(database_id))
+            except RuntimeError:
+                asyncio.run(invalidate_cache(database_id))
 
         logger.info(
             "schema_cache_invalidated",
