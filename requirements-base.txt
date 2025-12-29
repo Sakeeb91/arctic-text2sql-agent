@@ -2,7 +2,7 @@
 # This layer is cached separately for faster builds
 
 # Core API Framework
-fastapi==0.127.0
+fastapi==0.128.0
 uvicorn[standard]==0.40.0
 pydantic==2.12.5
 pydantic-settings==2.12.0
@@ -14,7 +14,7 @@ psycopg2-binary==2.9.11
 alembic==1.17.2
 asyncpg==0.31.0
 aiomysql==0.3.2
-aiosqlite==0.22.0
+aiosqlite==0.22.1
 
 # Utilities
 python-dotenv==1.2.1
