@@ -13,25 +13,25 @@
 # ============================================================================
 
 # Core API Framework
-fastapi==0.127.0
-uvicorn[standard]==0.40.0
+fastapi==0.131.0
+uvicorn[standard]==0.41.0
 pydantic==2.12.5
-pydantic-settings==2.12.0
+pydantic-settings==2.13.1
 sse-starlette>=2.0.0  # Server-Sent Events for streaming (Issue #8)
 
 # Database
-sqlalchemy==2.0.45
+sqlalchemy==2.0.46
 psycopg2-binary==2.9.11
-alembic==1.17.2
+alembic==1.18.4
 
 # Async Database Drivers
 asyncpg==0.31.0
 aiomysql==0.3.2
-aiosqlite==0.22.0
+aiosqlite==0.22.1
 
 # Utilities
 python-dotenv==1.2.1
-tenacity==9.1.2
+tenacity==9.1.4
 pyyaml==6.0.3
 
 # Caching (Issue #8: Performance Optimization)
@@ -39,7 +39,7 @@ redis>=5.0.0
 hiredis>=2.3.0  # C parser for better Redis performance
 
 # Monitoring & Logging
-prometheus-client==0.23.1
+prometheus-client==0.24.1
 structlog==25.5.0
 
 # Distributed Tracing (Issue #9: Monitoring & Observability)
@@ -90,6 +90,6 @@ fakeredis>=2.21.0  # Redis mocking for tests (Issue #8)
 
 # Code Quality
 black==25.12.0
-ruff==0.14.10
+ruff==0.15.2
 mypy==1.19.1
 pre-commit==4.5.1
